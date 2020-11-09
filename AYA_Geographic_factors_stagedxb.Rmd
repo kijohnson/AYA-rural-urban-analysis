@@ -39,143 +39,214 @@ library(frequency)
 library(expss)
 library(dichromat)
 library(gridExtra)
+library(lmtest)
 ```
 
 #Load data from Box
 ```{r}
 #original location
 #AYAcancer_type <- read.csv("/Users/kijohnson/Box/From Box/NCDB  (PUF) 2015.1198/NCDB 2015.1198 (all files)/NCDB1198ALLv2_cancertype.csv") #cancer case data with AYA coding
-AYAcancer_type<-read.csv("NCDB1198ALLv2_cancertype.csv")
+AYA<-read.csv("NCDB1198ALLv2_cancertype.csv")
 ```
 #Data management
 ```{r}
 #variables needed: age group, RUCA codes, Urban/rural 2013, sex, race, insurance, income, Percent w/o highschool degree, cancer type, distance from cancer center
 
 #make age groups
-AYAcancer_type$Age_cat[AYAcancer_type$AGE>=15 & AYAcancer_type$AGE<20] <- 0
-AYAcancer_type$Age_cat[AYAcancer_type$AGE>=20 & AYAcancer_type$AGE<25] <- 1
-AYAcancer_type$Age_cat[AYAcancer_type$AGE>=25 & AYAcancer_type$AGE<30] <- 2
-AYAcancer_type$Age_cat[AYAcancer_type$AGE>=30 & AYAcancer_type$AGE<35] <- 3
-AYAcancer_type$Age_cat[AYAcancer_type$AGE>=35] <- 4
-AYAcancer_type$Age_cat<-factor(AYAcancer_type$Age_cat,levels=c(0:4),labels=c("15-19","20-24","25-29","30-34", "35-39"))
-freq(AYAcancer_type$Age_cat) #no missing data
+AYA$Age_cat[AYA$AGE>=15 & AYA$AGE<20] <- 0
+AYA$Age_cat[AYA$AGE>=20 & AYA$AGE<25] <- 1
+AYA$Age_cat[AYA$AGE>=25 & AYA$AGE<30] <- 2
+AYA$Age_cat[AYA$AGE>=30 & AYA$AGE<35] <- 3
+AYA$Age_cat[AYA$AGE>=35] <- 4
+AYA$Age_cat<-factor(AYA$Age_cat,levels=c(0:4),labels=c("15-19","20-24","25-29","30-34", "35-39"))
+table(AYA$Age_cat, useNA="always")
 
 #recode sex
-table(AYAcancer_type$SEX)
-AYAcancer_type$SEX[AYAcancer_type$SEX==1] <- 1 #males coded as 1
-AYAcancer_type$SEX[AYAcancer_type$SEX==2] <- 0 #females coded as 0
-AYAcancer_type$SEX<- factor(AYAcancer_type$SEX,levels=c(1:0),labels=c("Male","Female"))
-freq(AYAcancer_type$SEX) #no missing data
+AYA$SEX[AYA$SEX==1] <- 1 #males coded as 1
+AYA$SEX[AYA$SEX==2] <- 0 #females coded as 0
+AYA$SEX<- factor(AYA$SEX,levels=c(1:0),labels=c("Male","Female"))
+table(AYA$SEX, useNA="always")
 
 #recode race/ethnicity
-table(AYAcancer_type$RACE)
-#code for White 1
+#Code for White 1
 #Code for Black 2
 #Code for Other >=3 and !=99 (Unknown)
-AYAcancer_type$RACE[AYAcancer_type$RACE==1 & AYAcancer_type$SPANISH_HISPANIC_ORIGIN==0]<-0
-AYAcancer_type$RACE[AYAcancer_type$RACE==2 & AYAcancer_type$SPANISH_HISPANIC_ORIGIN==0]<-1
-AYAcancer_type$RACE[AYAcancer_type$RACE>=3 & AYAcancer_type$RACE<99 & AYAcancer_type$SPANISH_HISPANIC_ORIGIN==0]<-2
-AYAcancer_type$RACE[AYAcancer_type$SPANISH_HISPANIC_ORIGIN>0 &  AYAcancer_type$SPANISH_HISPANIC_ORIGIN<9]<-3
-AYAcancer_type$RACE<- factor(AYAcancer_type$RACE,levels=c(0:3),labels=c("Non-Hispanic  White","Non-Hispanic Black","Non-Hispanic Other", "Hispanic"))
-freq(AYAcancer_type$RACE)
+AYA$RACE[AYA$RACE==1 & AYA$SPANISH_HISPANIC_ORIGIN==0]<-0
+AYA$RACE[AYA$RACE==2 & AYA$SPANISH_HISPANIC_ORIGIN==0]<-1
+AYA$RACE[AYA$RACE>=3 & AYA$RACE<99 & AYA$SPANISH_HISPANIC_ORIGIN==0]<-2
+AYA$RACE[AYA$SPANISH_HISPANIC_ORIGIN>0 &  AYA$SPANISH_HISPANIC_ORIGIN<9]<-3
+AYA$RACE<- factor(AYA$RACE,levels=c(0:3),labels=c("Non-Hispanic White","Non-Hispanic Black","Non-Hispanic Other", "Hispanic"))
+table(AYA$RACE, useNA="always")
 
 #label primary payer
-AYAcancer_type$insurance<-factor(AYAcancer_type$INSURANCE_STATUS, levels=c(0:4), labels=c("Not Insured", "Private Insurance/Managed Care", "Medicaid", "Medicare", "Other Government"))
-freq(AYAcancer_type$insurance)
+AYA$insurance<-factor(AYA$INSURANCE_STATUS, levels=c(0:4), labels=c("Not Insured", "Private Insurance/Managed Care", "Medicaid", "Medicare", "Other Government"))
+table(AYA$insurance, useNA="always")
 
 #label analytic stage
-AYAcancer_type$stage<-factor(AYAcancer_type$ANALYTIC_STAGE_GROUP, levels=c(0,1,2,3,4,5,8,9), labels=c("Stage 0", "Stage I", "Stage II", "Stage III", "Stage IV", "Occult (lung only)", "AJCC Staging Not Applicable", "AJCC Staging Unknown"))
-freq(AYAcancer_type$stage)
+AYA$stage<-factor(AYA$ANALYTIC_STAGE_GROUP, levels=c(0,1,2,3,4,5,8,9), labels=c("Stage 0", "Stage I", "Stage II", "Stage III", "Stage IV", "Occult (lung only)", "AJCC Staging Not Applicable", "AJCC Staging Unknown"))
+table(AYA$stage, useNA="always")
 
-#create early and late stage group (exclude stage 0)
-AYAcancer_type$stage_binary[AYAcancer_type$stage=="Stage I"|AYAcancer_type$stage=="Stage II"]<-0
-AYAcancer_type$stage_binary[AYAcancer_type$stage=="Stage III"|AYAcancer_type$stage=="Stage IV"]<-1
-AYAcancer_type$stage_binary<-factor(AYAcancer_type$stage_binary, levels=c(0,1), labels=c("Early", "Late"))
-freq(AYAcancer_type$stage_binary)
+#create early and late stage group (exclude stage 0 and Occult (lung only))
+AYA$stage_binary[AYA$stage=="Stage I"|AYA$stage=="Stage II"]<-0
+AYA$stage_binary[AYA$stage=="Stage III"|AYA$stage=="Stage IV"]<-1
+AYA$stage_binary<-factor(AYA$stage_binary, levels=c(0,1), labels=c("Early", "Late"))
+table(AYA$stage_binary, useNA="always")
 
 #education quartiles (This measure of educational attainment for each patient's area of residence is estimated by matching the zip code of the patient recorded at the time of diagnosis against files derived from the 2012 American Community Survey data, spanning years 2008-2012. 
-AYAcancer_type$educ[AYAcancer_type$NO_HSD_QUAR_12==1]<-0
-AYAcancer_type$educ[AYAcancer_type$NO_HSD_QUAR_12==2]<-1
-AYAcancer_type$educ[AYAcancer_type$NO_HSD_QUAR_12==3]<-2
-AYAcancer_type$educ[AYAcancer_type$NO_HSD_QUAR_12==4]<-3
-AYAcancer_type$educ<-factor(AYAcancer_type$educ, levels=c(0:3), labels=c("21% or more", "13%-20.9%", "7%-12.9%", "Less than 7%"))
-freq(AYAcancer_type$educ)
+AYA$educ[AYA$NO_HSD_QUAR_12==1]<-0
+AYA$educ[AYA$NO_HSD_QUAR_12==2]<-1
+AYA$educ[AYA$NO_HSD_QUAR_12==3]<-2
+AYA$educ[AYA$NO_HSD_QUAR_12==4]<-3
+AYA$educ<-factor(AYA$educ, levels=c(0:3), labels=c("21% or more", "13%-20.9%", "7%-12.9%", "Less than 7%"))
+table(AYA$educ, useNA="always")
+
 
 #income quartiles 2008-2012 (Median household income for each patient's area of residence is estimated by matching the zip code of the patient recorded at the time of diagnosis against files derived from the 2012 American Community Survey data, spanning years 2008-2012 and adjusted for 2012 inflation.)
-AYAcancer_type$income[AYAcancer_type$MED_INC_QUAR_12==1]<-0
-AYAcancer_type$income[AYAcancer_type$MED_INC_QUAR_12==2]<-1
-AYAcancer_type$income[AYAcancer_type$MED_INC_QUAR_12==3]<-2
-AYAcancer_type$income[AYAcancer_type$MED_INC_QUAR_12==4]<-3
-AYAcancer_type$income<-factor(AYAcancer_type$income, levels=c(0:3), labels=c("Less than $38,000", "$38,000-$47,999", "$48,000-$62,999", "$63,000+"))
-freq(AYAcancer_type$income)
+AYA$income[AYA$MED_INC_QUAR_12==1]<-0
+AYA$income[AYA$MED_INC_QUAR_12==2]<-1
+AYA$income[AYA$MED_INC_QUAR_12==3]<-2
+AYA$income[AYA$MED_INC_QUAR_12==4]<-3
+AYA$income<-factor(AYA$income, levels=c(0:3), labels=c("Less than $38,000", "$38,000-$47,999", "$48,000-$62,999", "$63,000+"))
+table(AYA$income, useNA="always")
 
 #Rural/Urban
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==1]<-0
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==2]<-1
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==3]<-2
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==4]<-3
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==5]<-4
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==6]<-5
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==7]<-6
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==8]<-7
-AYAcancer_type$RUCC[AYAcancer_type$UR_CD_13==9]<-8
-AYAcancer_type$RUCC<-factor(AYAcancer_type$RUCC, levels=c(0:8), labels=c("Counties in metro areas of ≥ 1 million", "Counties in metro areas of 250,000 to 1 million", "Counties in metro areas of <250,000", "Urban population of ≥20,000, adjacent to a metro area", "Urban population of ≥20,000, not adjacent to a metro area", "Urban population of 2,500 to 19,999, adjacent to a metro area", "Urban population of 2,500 to 19,999, not adjacent to a metro area", "Completely rural or ≤2,500 urban population, adjacent to a metro area", "Completely rural or ≤2,500 urban population, not adjacent to a metro area"))
-summary(AYAcancer_type$RUCC) #no missing data
+AYA$RUCC[AYA$UR_CD_13==1]<-0
+AYA$RUCC[AYA$UR_CD_13==2]<-1
+AYA$RUCC[AYA$UR_CD_13==3]<-2
+AYA$RUCC[AYA$UR_CD_13==4]<-3
+AYA$RUCC[AYA$UR_CD_13==5]<-4
+AYA$RUCC[AYA$UR_CD_13==6]<-5
+AYA$RUCC[AYA$UR_CD_13==7]<-6
+AYA$RUCC[AYA$UR_CD_13==8]<-7
+AYA$RUCC[AYA$UR_CD_13==9]<-8
+AYA$RUCC<-factor(AYA$RUCC, levels=c(0:8), labels=c("Counties in metro areas of ≥ 1 million", "Counties in metro areas of 250,000 to 1 million", "Counties in metro areas of <250,000", "Urban population of ≥20,000, adjacent to a metro area", "Urban population of ≥20,000, not adjacent to a metro area", "Urban population of 2,500 to 19,999, adjacent to a metro area", "Urban population of 2,500 to 19,999, not adjacent to a metro area", "Completely rural or ≤2,500 urban population, adjacent to a metro area", "Completely rural or ≤2,500 urban population, not adjacent to a metro area"))
+table(AYA$RUCC, useNA="always") #no missing data
 
 #divide into metro, nonmetrourban, and rural
-AYAcancer_type$RUCC3[AYAcancer_type$RUCC=="Counties in metro areas of ≥ 1 million"|AYAcancer_type$RUCC=="Counties in metro areas of 250,000 to 1 million"|AYAcancer_type$RUCC=="Counties in metro areas of <250,000"]<-0
+AYA$RUCC3[AYA$RUCC=="Counties in metro areas of ≥ 1 million"|AYA$RUCC=="Counties in metro areas of 250,000 to 1 million"|AYA$RUCC=="Counties in metro areas of <250,000"]<-0
 
-AYAcancer_type$RUCC3[AYAcancer_type$RUCC=="Urban population of ≥20,000, adjacent to a metro area"|AYAcancer_type$RUCC=="Urban population of ≥20,000, not adjacent to a metro area"|AYAcancer_type$RUCC=="Urban population of 2,500 to 19,999, adjacent to a metro area"|AYAcancer_type$RUCC=="Urban population of 2,500 to 19,999, not adjacent to a metro area"]<-1
+AYA$RUCC3[AYA$RUCC=="Urban population of ≥20,000, adjacent to a metro area"|AYA$RUCC=="Urban population of ≥20,000, not adjacent to a metro area"|AYA$RUCC=="Urban population of 2,500 to 19,999, adjacent to a metro area"|AYA$RUCC=="Urban population of 2,500 to 19,999, not adjacent to a metro area"]<-1
 
-AYAcancer_type$RUCC3[AYAcancer_type$RUCC=="Completely rural or ≤2,500 urban population, adjacent to a metro area"|AYAcancer_type$RUCC=="Completely rural or ≤2,500 urban population, not adjacent to a metro area"]<-2
-AYAcancer_type$RUCC3<-factor(AYAcancer_type$RUCC3, levels=c(0:2), labels=c("Metro", "Non-metro Urban", "Rural"))
+AYA$RUCC3[AYA$RUCC=="Completely rural or ≤2,500 urban population, adjacent to a metro area"|AYA$RUCC=="Completely rural or ≤2,500 urban population, not adjacent to a metro area"]<-2
+AYA$RUCC3<-factor(AYA$RUCC3, levels=c(0:2), labels=c("Metro", "Non-metro Urban", "Rural"))
 
-table(AYAcancer_type$RUCC3, AYAcancer_type$RUCC, useNA="ifany")
-table(AYAcancer_type$RUCC3, useNA="ifany")
+table(AYA$RUCC3, AYA$RUCC, useNA="ifany")
+table(AYA$RUCC3, useNA="ifany")
 
 #greater circle distance
 #Justifcation from PMID: 24516014  "Three patient groups were created on the basis of travel distance: short ( 12.5 miles); intermediate (12.5 to 49.9 miles); long ( 50 miles). We selected 50 miles as our long-distance benchmark on the basis of work by Onega et al.9"
-AYAcancer_type$GCD[AYAcancer_type$CROWFLY<=12.5]<-0
-AYAcancer_type$GCD[AYAcancer_type$CROWFLY>12.5 & AYAcancer_type$CROWFLY<=49.9]<-1
-AYAcancer_type$GCD[AYAcancer_type$CROWFLY>=50]<-2
-AYAcancer_type$GCD<-factor(AYAcancer_type$GCD, levels=c(0:2), labels=c("Short", "Intermediate", "Long"))
-freq(AYAcancer_type$GCD)
-table(AYAcancer_type$GCD)
-
-#break up long further
-AYAcancer_type$GCD2[AYAcancer_type$CROWFLY<=12.5]<-0
-AYAcancer_type$GCD2[AYAcancer_type$CROWFLY>12.5 & AYAcancer_type$CROWFLY<=49.9]<-1
-AYAcancer_type$GCD2[AYAcancer_type$CROWFLY>=50 & AYAcancer_type$CROWFLY<=100]<-2
-AYAcancer_type$GCD2[AYAcancer_type$CROWFLY>100 & AYAcancer_type$CROWFLY<=200]<-3
-AYAcancer_type$GCD2[AYAcancer_type$CROWFLY>200]<-4
-AYAcancer_type$GCD2<-factor(AYAcancer_type$GCD2, levels=c(0:4), labels=c("Short", "Intermediate", "Long", "Longer", "Longest"))
-freq(AYAcancer_type$GCD2)
-table(AYAcancer_type$GCD2)
+AYA$GCD[AYA$CROWFLY<=12.5]<-0
+AYA$GCD[AYA$CROWFLY>12.5 & AYA$CROWFLY<=49.9]<-1
+AYA$GCD[AYA$CROWFLY>=50]<-2
+AYA$GCD<-factor(AYA$GCD, levels=c(0:2), labels=c("Short", "Intermediate", "Long"))
+table(AYA$GCD)
 
 #recode vital status
-AYAcancer_type$dead[AYAcancer_type$PUF_VITAL_STATUS==1]<-0
-AYAcancer_type$dead[AYAcancer_type$PUF_VITAL_STATUS==0]<-1
-freq(AYAcancer_type$dead)
+AYA$dead[AYA$PUF_VITAL_STATUS==1]<-0
+AYA$dead[AYA$PUF_VITAL_STATUS==0]<-1
+table(AYA$dead)
 
 #person months
-summary(AYAcancer_type$DX_LASTCONTACT_DEATH_MONTHS)
+summary(AYA$DX_LASTCONTACT_DEATH_MONTHS)
+
+#cancer type coding according to https://seer.cancer.gov/ayarecode/aya-who2008.html
+AYA$cantype[(AYA$PRIMARY_SITE %in% c(0:809)& AYA$HISTOLOGY%in%c(9826, 9835:9836,9840, 9861, 9865:9867, 9869, 9871:9874, 9891, 9895:9898, 9910:9911, 9920,9863, 9875:9876, 9945:9946,9742, 9800:9801, 9805:9809, 9820, 9831:9834, 9860, 9870, 9930:9931, 9940, 9948, 9963:9964))|
+(AYA$PRIMARY_SITE %in% c(420:421, 424)& AYA$HISTOLOGY%in%c(9811:9818, 9837))|
+(AYA$PRIMARY_SITE %in% c(420:421, 424)& AYA$HISTOLOGY%in%c(9823, 9827))]<-
+"1.0 Leukemias"
+
+AYA$cantype[(AYA$PRIMARY_SITE %in% c(0:809)& AYA$HISTOLOGY%in%c(9590:9591, 9596:9597, 9670:9671, 9673, 9675, 9678:9680, 9684, 9687:9691, 9695, 9698:9702, 9705, 9708:9709, 9712, 9714, 9716:9719, 9725:9729, 9735, 9737:9738, 9650:9655, 9659, 9661:9665, 9667))|
+(AYA$PRIMARY_SITE %in% c(0:419, 422:423, 425:809)& AYA$HISTOLOGY%in%c( 9811:9818, 9823, 9827, 9837))]<-
+"2.1 Non-Hodgkin lymphoma"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(0:809)& AYA$HISTOLOGY%in%c(9650:9655, 9659, 9661:9665, 9667)]<-
+"2.2 Hodgkin lymphoma"
+
+AYA$cantype[(AYA$PRIMARY_SITE %in% c(0:809)& AYA$HISTOLOGY%in%c(9410:9411, 9420:9421, 9424,9401, 9440:9442, 9400, 9381:9384, 9423, 9430, 9450:9451, 9460,	9391:9394))|
+(AYA$PRIMARY_SITE %in% c(723)& AYA$HISTOLOGY %in% c(9380))|
+(AYA$PRIMARY_SITE %in% c(0:722, 724:809) & AYA$HISTOLOGY %in% c(9380))|
+  
+(AYA$PRIMARY_SITE %in% c(716) & AYA$HISTOLOGY %in% c(9470:9474))|
+(AYA$PRIMARY_SITE %in% c(0:715, 717:809) & AYA$HISTOLOGY %in% c(9470:9474))|
+(AYA$PRIMARY_SITE %in% c(0:699, 730:750, 754:809) & AYA$HISTOLOGY %in% c(9350:9351, 9360:9362, 9390, 9480, 9530:9535, 9537:9539, 9541, 9550, 9562, 9570))|
+(AYA$PRIMARY_SITE %in% c(700:729, 751:753) & AYA$HISTOLOGY %in% c(9161, 9361:9362, 9390, 9530:9531, 9535, 9538, 9540, 9560, 9571))|
+(AYA$PRIMARY_SITE %in% c(700) & AYA$HISTOLOGY %in% c(9532, 9534, 9537, 9539))|
+(AYA$PRIMARY_SITE %in% c(753) & AYA$HISTOLOGY %in% c(9360))|
+(AYA$PRIMARY_SITE %in% c(711) & AYA$HISTOLOGY %in% c(9480, 9539))|
+(AYA$PRIMARY_SITE %in% c(713) & AYA$HISTOLOGY %in% c(9480, 9533))|
+(AYA$PRIMARY_SITE %in% c(719) & AYA$HISTOLOGY %in% c(9350))|
+(AYA$PRIMARY_SITE %in% c(714,717) & AYA$HISTOLOGY %in% c(9480))|
+(AYA$PRIMARY_SITE %in% c(709) & AYA$HISTOLOGY %in% c(9539))|
+(AYA$PRIMARY_SITE %in% c(700:729, 751:753) & AYA$HISTOLOGY %in% c(8000:8005))]<-
+"3.0 CNS and Other Intracranial and Intraspinal Neoplasms (all behaviors)"
+
+AYA$cantype[(AYA$PRIMARY_SITE %in% c(569, 620:629)& AYA$HISTOLOGY%in%c(9060:9065, 9070:9073, 9080:9085, 9090:9091, 9100:9102, 9105) & AYA$BEHAVIOR==3)|
+(AYA$PRIMARY_SITE %in% c(700:729, 751:753)& AYA$HISTOLOGY%in%c(9060:9065, 9070:9073, 9080:9085, 9090:9091, 9100:9102, 9105) & AYA$BEHAVIOR %in% c(0,1,3))|
+(AYA$PRIMARY_SITE %in% c(0:568, 570:619, 630:699, 730:750, 754:809)& AYA$HISTOLOGY %in%  c(9060:9065, 9070:9073, 9080:9085, 9090:9091, 9100:9102, 9104:9105) & AYA$BEHAVIOR==3)]<-
+"6.1 Germ cell and trophoblastic neoplasms of gonads"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(0:809) & AYA$HISTOLOGY %in% c(8720:8723, 8726, 8728, 8730, 8740:8746, 8761, 8770:8774, 8780) & AYA$BEHAVIOR==3]<-
+"7.1 Melanoma"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(739)&AYA$HISTOLOGY%in%c(8010:8589) & AYA$BEHAVIOR==3]<-
+"8.1 Thyroid carcinoma"
+
+AYA$cantype[(AYA$PRIMARY_SITE %in% c(110:119) & AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3)|
+(AYA$PRIMARY_SITE %in% c(0:109, 120:148) & AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3)|
+ (AYA$PRIMARY_SITE %in% c(300:329,760) & AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3)]<-
+"8.2 Carcinoma of head and neck"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(330:349) &  AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3]<-
+"8.3 Carcinoma of trachea, bronchus, and lung"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(500:509) & AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3]<-
+"8.4 Carcinoma of breast"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(649)&AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3]<-
+"8.5.1 Carcinoma of kidney"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(530, 531, 538,539)&AYA$HISTOLOGY%in%c(8010:8589)]<-
+"8.5.4 Carcinoma of cervix"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(180:218)&AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3]<-
+"8.6.1 Carcinoma of colon and rectum"
+
+AYA$cantype[AYA$PRIMARY_SITE %in% c(160:169)&AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3]<-
+"8.6.2 Carcinoma of stomach"
+
+AYA$cantype[(AYA$PRIMARY_SITE %in% c(569, 620:629) & AYA$HISTOLOGY %in% c(8010:8589) & AYA$BEHAVIOR==3)|
+(AYA$PRIMARY_SITE %in% c(0:809) & AYA$HISTOLOGY %in% c(8590:8593) & AYA$BEHAVIOR==3)]<-
+"8.5.3 Carcinoma of gonads"
+
+AYA$cantype[(AYA$PRIMARY_SITE %in% c(0:809)&AYA$HISTOLOGY%in%c(9180:9187, 9192:9194,9220:9221, 9230:9231, 9240, 9242:9243, 9260, 9364:9365, 8812, 9250, 9261, 9370:9372))|
+(AYA$PRIMARY_SITE %in% c(400:419)& AYA$HISTOLOGY%in% c(8000:8005, 8800:8803, 8805:8806, 9200))]<-
+"4.0 Osseous and chondromatous neoplasms"
+
+AYA$cantype[(AYA$PRIMARY_SITE %in% c(0:809) &  AYA$HISTOLOGY %in% c(8810:8811, 8813:8815, 8820:8824, 8830, 8832:8833, 8835:8836, 9252, 8900:8904, 8910, 8912, 8920:8921, 8991,8804, 8825, 8840:8897, 8982:8983, 8990, 9040:9044, 9120:9139, 9141:9150, 9170, 9251, 9561, 9580:9581) & AYA$BEHAVIOR==3)|
+(AYA$PRIMARY_SITE %in% c(0:699, 730:750, 754:809) & AYA$HISTOLOGY %in%c (9540, 9560, 9571) & AYA$BEHAVIOR==3)|
+(AYA$PRIMARY_SITE %in% c(0:809) & AYA$HISTOLOGY %in% c(9140) & AYA$BEHAVIOR==3)|
+(AYA$PRIMARY_SITE %in% c(0:399, 420:809) & AYA$HISTOLOGY %in% c(8800:8803, 8805:8806) & AYA$BEHAVIOR==3)]<-
+"5.0 Soft Tissue Sarcomas"
+
+table1(~cantype, droplevels=TRUE, data=AYA)
 
 #Apply variable labels
-AYAcancer_type<-apply_labels(AYAcancer_type, insurance="Insurance", Age_cat="Age category", SEX="Sex", RACE="Race", educ="Education", income="Income", stage="Stage at diagnosis", Cancer.Type.Justin.Recode="Cancer Type")
+AYA<-apply_labels(AYA, insurance="Insurance", Age_cat="Age category", SEX="Sex", RACE="Race", educ="Education", income="Income", stage="Stage at diagnosis", cantype="Cancer Type")
 
+table(AYA$cantype, AYA$Cancer.Type.Justin.Recode)
 
 ```
 
 # Exclusions
 ```{r}
 #exclude individuals <15 and with years of dx outside of 2010-2014
-AYAcancer_type<-AYAcancer_type[which(AYAcancer_type$AGE >=15 & AYAcancer_type$YEAR_OF_DIAGNOSIS>=2010 & AYAcancer_type$YEAR_OF_DIAGNOSIS<=2014),]
+AYA2<-AYA[which(AYA$AGE >=15 & AYA$YEAR_OF_DIAGNOSIS>=2010 & AYA$YEAR_OF_DIAGNOSIS<=2014),]
 
 #exclude individuals seen at more that one facility
-AYAcancer_type<-AYAcancer_type[which(AYAcancer_type$PUF_MULT_SOURCE==0),]
+AYA2<-AYA2[which(AYA2$PUF_MULT_SOURCE==0),]
 
 #Code to determine facility exclusions and exclude facilities that didn't report all years
-tab<-table(AYAcancer_type$PUF_FACILITY_ID, AYAcancer_type$YEAR_OF_DIAGNOSIS)
+tab<-table(AYA2$PUF_FACILITY_ID, AYA2$YEAR_OF_DIAGNOSIS)
 tab2<-as.data.frame.matrix(tab)
 colnames(tab2)<-c("yr10","yr11", "yr12", "yr13", "yr14") #R doesn't like numerical column names
 tab2<-cbind(facility=rownames(tab2), tab2) #turn rows into a column (one column)
@@ -187,14 +258,16 @@ facility<-as.vector(tab3$facility)
 facility
 typeof(facility)
 #remove anyone with a facility vector value 
-exclude<-AYAcancer_type[!(AYAcancer_type$PUF_FACILITY_ID%in%facility),]
+exclude<-AYA2[!(AYA2$PUF_FACILITY_ID%in%facility),]
 
 #Exclude second cancers and those with cancer types recorded as other
 exclude<-exclude[which(exclude$SEQUENCE_NUMBER==0),] 
-exclude<-exclude[which(exclude$Cancer.Type.Justin.Recode!="99.9.9.9 Other"),] #use for leukemia and brain below
+exclude<-exclude[which(!is.na(exclude$cantype)),] #use for leukemia and brain below'
 
 #Exclude leukemias and brain that are not staged 
-exclude2<- subset(exclude, Cancer.Type.Justin.Recode !="Leukemia"& Cancer.Type.Justin.Recode !="Brain")
+exclude2<- subset(exclude, cantype!="1.0 Leukemias" & cantype!="3.0 CNS and Other Intracranial and Intraspinal Neoplasms (all behaviors)")
+
+table(exclude2$ANALYTIC_STAGE_GROUP)
 
 #Exclude "Stage 0", "Occult (lung only)", "AJCC Staging Not Applicable"
 analytic_dt<-subset(exclude2, ANALYTIC_STAGE_GROUP !=0 & ANALYTIC_STAGE_GROUP !=5 & ANALYTIC_STAGE_GROUP !=8)
@@ -225,16 +298,18 @@ analytic_dt_lb <- analytic_dt_lb[which(analytic_dt_lb$RUCC3!="NA"),]
 analytic_dt_lb <- analytic_dt_lb[which(analytic_dt_lb$GCD!="NA"),]
 analytic_dt_lb <- analytic_dt_lb[which(analytic_dt_lb$dead!="NA"),]
 analytic_dt_lb <- analytic_dt_lb[which(analytic_dt_lb$DX_LASTCONTACT_DEATH_MONTHS!="NA"),]
+
 ```
 
 # Figure 1: flowchart for stage
 ```{r}
 #install.packages("DiagrammeR")
 library(DiagrammeR)
+pdf(file = "Figure 1.pdf")
 grViz("digraph flowchart {
 
       # node definitions with substituted label text
-      node [fontname = Helvetica, shape = rectangle]        
+      node [fontname = Helvetica, shape = rectangle, fontsize=10]        
       tab1 [label = '@@1']
       tab2 [label = '@@2']
       tab3 [label = '@@3']
@@ -253,23 +328,53 @@ grViz("digraph flowchart {
       [2]: 'Excluding 471,307 individuals diagnosed before age 15 and before 2010 n=309,540'
       [3]: 'Excluding 45,0101 individuals seen at more than one facility n=263,530'
       [4]: 'Excluding 6022 facilities not reporting in all years n=257,508'
-      [5]: 'Excluding 41,103 individuals with second cancers and those with cancers recorded as other n=189,352'
-      [6]: 'Excluding 19,825 individuals with leukemia and brain tumors n=169,527'
-      [7]: 'Excluding 3946 individuals not malignant, stage 0, Occult (lung only), and AJCC staging not applicable n=165,581'
-      [8]: 'Excluding 19,906 individuals with missing data on variables used in the stage analysis n=145,675'
-      [9]: 'Excluding 13,142 individuals with missing data on variables used in the survival analysis n=176,210'
+      [5]: 'Excluding 65,500 individuals with second cancers and \\n those with cancer types not included in analysis n=192,008'
+      [6]: 'Excluding 19,825 individuals with leukemia and \\n  brain tumors n=172,183'
+      [7]: 'Excluding 5400 individuals not malignant, stage 0, \\n Occult (lung only), and AJCC staging not applicable n=166,783'
+      [8]: 'Excluding 20,365 individuals with missing data \\n on variables used in the stage analysis n=146,418'
+      [9]: 'Excluding 14,137 individuals with missing data on variables \\n used in the survival analysis n=178,688'
       ")
+
+dev.off()
 ```
-#Table 1: Descriptive characteristics for stage dataset
+#Check cancer type classification
 ```{r}
-table1(~SEX + Age_cat + RACE + insurance + stage + stage_binary + income + educ + Cancer.Type.Justin.Recode |RUCC3, droplevels=TRUE, data=analytic_dt_v)
-```
-#Supplementary Table 1 Descriptive characteristics for overall survival dataset
-```{r}
-table1(~SEX + Age_cat + RACE + insurance + stage + stage_binary + income + educ + Cancer.Type.Justin.Recode|RUCC3, droplevels=TRUE, data=analytic_dt_lb)
+table1(~cantype + Cancer.Type.Justin.Recode,  analytic_dt_lb) #differences in STS are due to KS (n=1080), differences in breast are due to male breast (n=148), differences in GCTs are due to non-gonadal tumors (n=1250))
 ```
 
-# Table 2: Unadjusted regression models for stage (Rural Urban distance)
+#Check association between rural/urban and GCD variables
+```{r}
+table(analytic_dt_v$RUCC, analytic_dt_v$GCD)
+chisq.test(table(analytic_dt_v$RUCC, analytic_dt_v$GCD))
+table1(~RUCC|GCD,analytic_dt_v)
+```
+
+#Table 1: Descriptive characteristics for stage dataset
+```{r}
+
+analytic_dt_v$stage<-droplevels(analytic_dt_v$stage)
+label(analytic_dt_v$stage)<-"Stage at diagnosis"
+label(analytic_dt_v$stage_binary)<-"Stage at diagnosis (early vs. late)"
+label(analytic_dt_v$insurance)<-"Insurance at diagnosis or first treatment"
+label(analytic_dt_v$educ)<-"Zip-code median percent no high school degree quartile 2008-2012"
+label(analytic_dt_v$income)<-"Zip-code median income quartile 2008-2012"
+
+table1(~SEX + Age_cat + RACE + insurance + income + educ + stage + stage_binary + cantype |RUCC3, rowlabelhead="Variable", droplevels=TRUE, data=analytic_dt_v)
+
+```
+#Supplementary Table 1: Descriptive characteristics for overall survival dataset
+```{r}
+analytic_dt_lb$stage<-droplevels(analytic_dt_lb$stage)
+label(analytic_dt_lb$stage)<-"Stage at diagnosis"
+label(analytic_dt_lb$stage_binary)<-"Stage at diagnosis (early vs. late)"
+label(analytic_dt_lb$insurance)<-"Insurance at diagnosis or first treatment"
+label(analytic_dt_lb$educ)<-"Zip-code median percent no high school degree quartile 2008-2012"
+label(analytic_dt_lb$income)<-"Zip-code median income quartile 2008-2012"
+table1(~SEX + Age_cat + RACE + insurance  + income + educ + + stage + stage_binary + cantype|RUCC3, droplevels=TRUE, data=analytic_dt_lb)
+
+```
+
+#Table 2: Unadjusted regression models for stage (Rural Urban distance)
 ```{r}
 #RUCC 9 category
 model1<-glm(stage_binary ~ RUCC, family = "binomial", data = analytic_dt_v)
@@ -288,7 +393,6 @@ nobs(model2)
 addmargins(table(analytic_dt_v$stage_binary, analytic_dt_v$RUCC3))
 
 #Crowflys
-  
 model_GCD<-glm(stage_binary ~ GCD, family = "binomial", data = analytic_dt_v)
 summary(model_GCD)
 
@@ -297,7 +401,7 @@ nobs(model_GCD)
 addmargins(table(analytic_dt_v$stage_binary, analytic_dt_v$GCD))
 ```
 
-#Table 2:Adjusted regression models for stage (Rural Urban distance)
+#Table 2: Adjusted regression models for stage (Rural Urban distance)
 ```{r}
 #Adjusted for confounders determined from DAG (minimal set-race, education, age, sex)
 model1a<-glm(stage_binary ~ RUCC + RACE + AGE + SEX +educ, family = "binomial", data = analytic_dt_v)
@@ -316,92 +420,161 @@ model_GCDa<-glm(stage_binary ~ GCD + RACE + AGE + educ+ SEX, family = "binomial"
 
 odds.n.ends(model_GCDa)
 nobs(model_GCDa)
+
+#Adjusted for confounders determined from DAG (minimal set-race, education, age, sex + RUCC3)
+model_GCDa<-glm(stage_binary ~ GCD + RACE + AGE + educ+ SEX +RUCC3, family = "binomial", data = analytic_dt_v)
+
+odds.n.ends(model_GCDa)
+nobs(model_GCDa)
 ```
 
-# Modification by cancer type of associations between RUCC3 and GCD and stage binary
+# Modification by sex, race, and cancer type of associations between RUCC3 and GCD and stage binary
 ```{r}
-# First test effect modification by cancer type RUCC3
-model2b<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ + income + insurance + Cancer.Type.Justin.Recode, family = "binomial", data = analytic_dt_v)
-summary(model2b)
+# Effect modification by sex RUCC3
+modelsex<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt_v)
+summary(modelsex)
 
-model4<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ + income + insurance + Cancer.Type.Justin.Recode + RUCC3*Cancer.Type.Justin.Recode, family = "binomial", data = analytic_dt_v)
-summary(model4)
+modelsexint<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ  + RUCC3*SEX, family = "binomial", data = analytic_dt_v)
+summary(modelsex)
 
-library(lmtest)
+lrtestEM<-lrtest(modelsex, modelsexint)
+lrtestEM #no interaction by SEX
 
+# Effect modification by RACE RUCC3
+modelRACE<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt_v)
+summary(modelRACE)
 
-lrtestEM<-lrtest(model2b, model4)
+modelRACEint<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ  + RUCC3*RACE, family = "binomial", data = analytic_dt_v)
+summary(modelRACEint)
+
+lrtestEM<-lrtest(modelRACE, modelRACEint)
+lrtestEM #no interaction by RACE
+
+# Effect modification by cancer type RUCC3
+modelcantype<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ + cantype, family = "binomial", data = analytic_dt_v)
+summary(modelcantype)
+
+modelcantypeint<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ  + cantype + RUCC3*cantype, family = "binomial", data = analytic_dt_v)
+summary(modelcantypeint)
+
+lrtestEM<-lrtest(modelcantype, modelcantypeint)
 lrtestEM
 
-# Test effect modification by cancer type GCD
-modelGCDb<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ + income + insurance + Cancer.Type.Justin.Recode, family = "binomial", data = analytic_dt_v)
+# Effect modification by sex GCD
+modelsex<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt_v)
+summary(modelsex)
 
-model5<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ + income + insurance + Cancer.Type.Justin.Recode + GCD*Cancer.Type.Justin.Recode, family = "binomial", data = analytic_dt_v)
-library(lmtest)
-summary(model5)
+modelsexint<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ  + GCD*SEX, family = "binomial", data = analytic_dt_v)
+summary(modelsex)
 
-lrtestEM<-lrtest(modelGCDb, model5)
+lrtestEM<-lrtest(modelsex, modelsexint)
+lrtestEM #interaction by SEX 0.01
+
+# How different are the estimates?
+modelsex<-glm(stage_binary ~ GCD + RACE + AGE + educ, family = "binomial", data = analytic_dt_v[which(analytic_dt_v$SEX=="Male"),])
+summary(modelsex)
+odds.n.ends(modelsex) #males
+
+modelsex<-glm(stage_binary ~ GCD + RACE + AGE + educ, family = "binomial", data = analytic_dt_v[which(analytic_dt_v$SEX=="Female"),])
+summary(modelsex)
+odds.n.ends(modelsex) #females
+
+# Effect modification by RACE GCD
+modelRACE<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt_v)
+summary(modelsex)
+
+modelRACEint<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ  + GCD*RACE, family = "binomial", data = analytic_dt_v)
+summary(modelsex)
+
+lrtestEM<-lrtest(modelRACE, modelRACEint)
+lrtestEM #no interaction by RACE (p>0.05)
+
+# How different are the estimates?
+modelRACE<-glm(stage_binary ~ GCD + SEX + AGE + educ, family = "binomial", data = analytic_dt_v[which(analytic_dt_v$RACE=="Non-Hispanic White"),])
+summary(modelRACE)
+odds.n.ends(modelRACE) #White
+
+modelRACE<-glm(stage_binary ~ GCD + SEX + AGE + educ, family = "binomial", data = analytic_dt_v[which(analytic_dt_v$RACE=="Non-Hispanic Black"),])
+summary(modelRACE)
+odds.n.ends(modelRACE) #Black
+
+modelRACE<-glm(stage_binary ~ GCD + SEX + AGE + educ, family = "binomial", data = analytic_dt_v[which(analytic_dt_v$RACE=="Hispanic"),])
+summary(modelRACE)
+odds.n.ends(modelRACE) #Hispanic
+
+modelRACE<-glm(stage_binary ~ GCD + SEX + AGE + educ, family = "binomial", data = analytic_dt_v[which(analytic_dt_v$RACE=="Non-Hispanic Other"),])
+summary(modelRACE)
+odds.n.ends(modelRACE) #Non-Hispanic Other
+
+# Effect modification by cancer type GCD
+modelcantype<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ + cantype, family = "binomial", data = analytic_dt_v)
+
+modelcantypeint<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ + cantype + GCD*cantype, family = "binomial", data = analytic_dt_v)
+
+lrtestEM<-lrtest(modelcantype, modelcantypeint)
 lrtestEM
 ```
 
-
-#OR by cancer types for RUCC3 and GCD
+# OR by cancer types by RUCC3 and GCD
 ```{r}
 # 2.1 Non-Hodgkin lymphoma
-model5a<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="2.1 Non-Hodgkin lymphoma"),])
+model5a<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="2.1 Non-Hodgkin lymphoma"),])
+summary(model5a)
 
 ORmodel5a<-exp(cbind(OR = coef(model5a), confint(model5a))) #calculate ORs and 95% CIs
   ORmodel5a #print ORs and 95% CIs
 
 #GCD
-model5b<-glm(stage_binary ~ GCD + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="2.1 Non-Hodgkin lymphoma"),])
+model5b<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="2.1 Non-Hodgkin lymphoma"),])
+summary(model5b)
 
 ORmodel5b<-exp(cbind(OR = coef(model5b), confint(model5b))) #calculate ORs and 95% CIs
   ORmodel5b #print ORs and 95% CIs
 
 #**********************************************
 #2.2 Hodgkin lymphoma
-model5<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="2.2 Hodgkin lymphoma"),])
+model5<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="2.2 Hodgkin lymphoma"),])
 
 ORmodel5<-exp(cbind(OR = coef(model5), confint(model5))) #calculate ORs and 95% CIs
   ORmodel5 #print ORs and 95% CIs
   
 #GCD
-model5c<-glm(stage_binary ~ GCD + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="2.2 Hodgkin lymphoma"),])
+model5c<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="2.2 Hodgkin lymphoma"),])
 
 ORmodel5c<-exp(cbind(OR = coef(model5c), confint(model5c))) #calculate ORs and 95% CIs
   ORmodel5c #print ORs and 95% CIs
 #**********************************************
 #4.0 Osseous and chondromatous neoplasms
-model6<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="4.0 Osseous and chondromatous neoplasms"),])
+model6<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="4.0 Osseous and chondromatous neoplasms"),])
 
 ORmodel6<-exp(cbind(OR = coef(model6), confint(model6))) #calculate ORs and 95% CIs
   ORmodel6 #print ORs and 95% CIs
   
 #GCD
-model6a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="4.0 Osseous and chondromatous neoplasms"),])
+model6a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="4.0 Osseous and chondromatous neoplasms"),])
 summary(model6a)
 
 ORmodel6a<-exp(cbind(OR = coef(model6a), confint(model6a))) #calculate ORs and 95% CIs
   ORmodel6a #print ORs and 95% CIs
+
 #**********************************************
-#5.0 Soft Tissue Sarcomas (excluding Kaposi sarcoma)
-model7<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="5.0 Soft Tissue Sarcomas (excluding Kaposi sarcoma)"),])
+#5.0 Soft Tissue Sarcomas 
+model7<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="5.0 Soft Tissue Sarcomas"),])
 summary(model7)
 
 ORmodel7<-exp(cbind(OR = coef(model7), confint(model7))) #calculate ORs and 95% CIs
   ORmodel7 #print ORs and 95% CIs
   
 #GCD
-model7a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="5.0 Soft Tissue Sarcomas (excluding Kaposi sarcoma)"),])
+model7a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="5.0 Soft Tissue Sarcomas"),])
 summary(model7a)
 
 ORmodel7a<-exp(cbind(OR = coef(model7a), confint(model7a))) #calculate ORs and 95% CIs
   ORmodel7a #print ORs and 95% CIs
-#**********************************************
 
+#**********************************************
 #6.1 Germ cell and trophoblastic neoplasms of gonads
-model8<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="6.1 Germ cell and trophoblastic neoplasms of gonads"),])
+model8<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="6.1 Germ cell and trophoblastic neoplasms of gonads"),])
 summary(model8)
 
 
@@ -409,42 +582,45 @@ ORmodel8<-exp(cbind(OR = coef(model8), confint(model8))) #calculate ORs and 95% 
   ORmodel8 #print ORs and 95% CIs
   
 #GCD
-model8a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="6.1 Germ cell and trophoblastic neoplasms of gonads"),])
+model8a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="6.1 Germ cell and trophoblastic neoplasms of gonads"),])
 summary(model8a)
 
 ORmodel8a<-exp(cbind(OR = coef(model8a), confint(model8a))) #calculate ORs and 95% CIs
   ORmodel8a #print ORs and 95% CIs
+
 #**********************************************
 #7.1 Melanoma
-model9<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="7.1 Melanoma"),])
+model9<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="7.1 Melanoma"),])
 summary(model9)
 
 ORmodel9<-exp(cbind(OR = coef(model9), confint(model9))) #calculate ORs and 95% CIs
   ORmodel9 #print ORs and 95% CIs
   
 #GCD
-model9a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="7.1 Melanoma"),])
+model9a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="7.1 Melanoma"),])
 summary(model9a)
 
 ORmodel9a<-exp(cbind(OR = coef(model9a), confint(model9a))) #calculate ORs and 95% CIs
   ORmodel9a #print ORs and 95% CIs
+
 #**********************************************
 #8.1 Thyroid carcinoma
-model10<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.1 Thyroid carcinoma"),])
+model10<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.1 Thyroid carcinoma"),])
 summary(model10)
 
 ORmodel10<-exp(cbind(OR = coef(model10), confint(model10))) #calculate ORs and 95% CIs
   ORmodel10 #print ORs and 95% CIs
   
 #GCD
-model10a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.1 Thyroid carcinoma"),])
+model10a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.1 Thyroid carcinoma"),])
 summary(model10a)
 
 ORmodel10a<-exp(cbind(OR = coef(model10a), confint(model10a))) #calculate ORs and 95% CIs
   ORmodel10a #print ORs and 95% CIs
+
 #**********************************************
 #8.2 Carcinoma of head and neck
-model11<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.2 Carcinoma of head and neck"),])
+model11<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.2 Carcinoma of head and neck"),])
 summary(model11)
 
 
@@ -452,40 +628,38 @@ ORmodel11<-exp(cbind(OR = coef(model11), confint(model11))) #calculate ORs and 9
   ORmodel11 #print ORs and 95% CIs
 
 #GCD
-model11a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.2 Carcinoma of head and neck"),])
+model11a<-glm(stage_binary ~ GCD + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.2 Carcinoma of head and neck"),])
 summary(model11a)
 
 ORmodel11a<-exp(cbind(OR = coef(model11a), confint(model11a))) #calculate ORs and 95% CIs
   ORmodel11a #print ORs and 95% CIs
+
 #**********************************************
 #8.3 Carcinoma of trachea,bronchus, and lung
-model12<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.3 Carcinoma of trachea,bronchus, and lung"),])
+model12<-glm(stage_binary ~ RUCC3 + RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.3 Carcinoma of trachea, bronchus, and lung"),])
 summary(model12)
 
 ORmodel12<-exp(cbind(OR = coef(model12), confint(model12))) #calculate ORs and 95% CIs
   ORmodel12 #print ORs and 95% CIs
   
 #GCD
-model12a<-glm(stage_binary ~ GCD+ RACE + AGE + SEX + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.3 Carcinoma of trachea,bronchus, and lung"),])
+model12a<-glm(stage_binary ~ GCD+ RACE + AGE + SEX + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.3 Carcinoma of trachea, bronchus, and lung"),])
 summary(model12a)
 
 
 ORmodel12a<-exp(cbind(OR = coef(model12a), confint(model12a))) #calculate ORs and 95% CIs
   ORmodel12a #print ORs and 95% CIs
+
 #**********************************************
-#8.4 Carcinoma of breast--only includes females
-breast<-analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.4 Carcinoma of breast"),]
-table(breast$SEX)
-model13<-glm(stage_binary ~ RUCC3 + RACE + AGE  + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.4 Carcinoma of breast"),])
+#8.4 Carcinoma of breast=
+model13<-glm(stage_binary ~ RUCC3 + RACE + AGE  + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.4 Carcinoma of breast"),])
 summary(model13)
 
 ORmodel13<-exp(cbind(OR = coef(model13), confint(model13))) #calculate ORs and 95% CIs
   ORmodel13 #print ORs and 95% CIs
   
 #GCD
-breast<-analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.4 Carcinoma of breast"),]
-table(breast$SEX)
-model13a<-glm(stage_binary ~ GCD + RACE + AGE  + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.4 Carcinoma of breast"),])
+model13a<-glm(stage_binary ~ GCD + RACE + AGE  + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.4 Carcinoma of breast"),])
 summary(model13a)
 
 ORmodel13a<-exp(cbind(OR = coef(model13a), confint(model13a))) #calculate ORs and 95% CIs
@@ -493,29 +667,29 @@ ORmodel13a<-exp(cbind(OR = coef(model13a), confint(model13a))) #calculate ORs an
 
 #**********************************************
 #8.5.1 Carcinoma of kidney
-model14<-glm(stage_binary ~ RUCC3 + RACE + AGE  + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.5.1 Carcinoma of kidney"),])
+model14<-glm(stage_binary ~ RUCC3 + RACE + AGE  + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.5.1 Carcinoma of kidney"),])
 summary(model14)
 
 ORmodel14<-exp(cbind(OR = coef(model14), confint(model14))) #calculate ORs and 95% CIs
   ORmodel14 #print ORs and 95% CIs
   
 #GCD
-model14a<-glm(stage_binary ~ GCD + RACE + AGE  + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.5.1 Carcinoma of kidney"),])
+model14a<-glm(stage_binary ~ GCD + RACE + AGE  + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.5.1 Carcinoma of kidney"),])
 summary(model14a)
 
 ORmodel14a<-exp(cbind(OR = coef(model14a), confint(model14a))) #calculate ORs and 95% CIs
   ORmodel14a #print ORs and 95% CIs
-#**********************************************
 
+#**********************************************
 #8.5.3 Carcinoma of gonads
-model15<-glm(stage_binary ~ RUCC3 + RACE + SEX + AGE  + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.5.3 Carcinoma of gonads"),])
+model15<-glm(stage_binary ~ RUCC3 + RACE + SEX + AGE  + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.5.3 Carcinoma of gonads"),])
 summary(model15)
 
 ORmodel15<-exp(cbind(OR = coef(model15), confint(model15))) #calculate ORs and 95% CIs
   ORmodel15 #print ORs and 95% CIs
   
 #GCD
-model15a<-glm(stage_binary ~ GCD + RACE + SEX + AGE  + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.5.3 Carcinoma of gonads"),])
+model15a<-glm(stage_binary ~ GCD + RACE + SEX + AGE  + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.5.3 Carcinoma of gonads"),])
 summary(model15a)
 
 ORmodel15a<-exp(cbind(OR = coef(model15a), confint(model15a))) #calculate ORs and 95% CIs
@@ -523,49 +697,49 @@ ORmodel15a<-exp(cbind(OR = coef(model15a), confint(model15a))) #calculate ORs an
 
 #**********************************************
 #8.5.4 Carcinoma of cervix
-model16<-glm(stage_binary ~ RUCC3 + RACE +AGE  + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.5.4 Carcinoma of cervix"),])
+model16<-glm(stage_binary ~ RUCC3 + RACE +AGE  + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.5.4 Carcinoma of cervix"),])
 summary(model16)
 
 ORmodel16<-exp(cbind(OR = coef(model16), confint(model16))) #calculate ORs and 95% CIs
   ORmodel16 #print ORs and 95% CIs
   
 #GCD
-model16a<-glm(stage_binary ~ GCD + RACE +AGE  + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.5.4 Carcinoma of cervix"),])
+model16a<-glm(stage_binary ~ GCD + RACE +AGE  + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.5.4 Carcinoma of cervix"),])
 summary(model16a)
-
 
 ORmodel16a<-exp(cbind(OR = coef(model16a), confint(model16a))) #calculate ORs and 95% CIs
   ORmodel16a #print ORs and 95% CIs
+
 #**********************************************
 #8.6.1 Carcinoma of colon and rectum
-model17<-glm(stage_binary ~ RUCC3 + RACE + SEX+ AGE + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.6.1 Carcinoma of colon and rectum"),])
+model17<-glm(stage_binary ~ RUCC3 + RACE + SEX+ AGE + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.6.1 Carcinoma of colon and rectum"),])
 summary(model17)
 ORmodel17<-exp(cbind(OR = coef(model17), confint(model17))) #calculate ORs and 95% CIs
   ORmodel17 #print ORs and 95% CIs
 
 #GCD
-model17a<-glm(stage_binary ~ GCD + RACE + SEX+ AGE + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.6.1 Carcinoma of colon and rectum"),])
+model17a<-glm(stage_binary ~ GCD + RACE + SEX+ AGE + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.6.1 Carcinoma of colon and rectum"),])
 summary(model17a)
 
 ORmodel17a<-exp(cbind(OR = coef(model17a), confint(model17a))) #calculate ORs and 95% CIs
   ORmodel17a #print ORs and 95% CIs
 
 #**********************************************
-
 #8.6.2 Carcinoma of stomach
-model18<-glm(stage_binary ~ RUCC3 + RACE + SEX+ AGE + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.6.2 Carcinoma of stomach"),])
+model18<-glm(stage_binary ~ RUCC3 + RACE + SEX+ AGE + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.6.2 Carcinoma of stomach"),])
 summary(model18)
 
 ORmodel18<-exp(cbind(OR = coef(model18), confint(model18))) #calculate ORs and 95% CIs
   ORmodel18 #print ORs and 95% CIs
   
 #GCD
-model18a<-glm(stage_binary ~ GCD + RACE + SEX+ AGE + insurance, family = "binomial", data = analytic_dt[which(analytic_dt$Cancer.Type.Justin.Recode=="8.6.2 Carcinoma of stomach"),])
+model18a<-glm(stage_binary ~ GCD + RACE + SEX+ AGE + educ, family = "binomial", data = analytic_dt[which(analytic_dt$cantype=="8.6.2 Carcinoma of stomach"),])
 summary(model18a)
+
  ORmodel18a<-exp(cbind(OR = coef(model18a), confint(model18a))) #calculate ORs and 95% CIs
   ORmodel18a #print ORs and 95% CIs
 ```
-#Graph ORs and 95% CIs for cancer types for RUC (not used)
+# Graph ORs and 95% CIs for cancer types for RUC (not used)
 ```{r}
 #make empty data frame
 etable2<-data.frame(matrix(ncol=5, nrow=0))
@@ -610,7 +784,7 @@ etable2$UpperCI<-as.numeric(etable2$UpperCI)
 ggplot(etable2,aes(x = `RUC`, y =`OR`, color=`RUC`)) +
   geom_point(size = 1)+
   scale_color_manual(values=c("blue", "green"))+
-  ylim(0,5.5) +
+  ylim(0,6) +
    coord_flip() +
   geom_errorbar(aes(ymax = lowCI, ymin = UpperCI), width = 0.2)+
   geom_hline(yintercept = 1, color="black", linetype = 1 ) +
@@ -629,15 +803,15 @@ theme(axis.title.y=element_blank(),
 library(openxlsx)
 ```
 
-#Supplementary Table 2
+# Supplementary Table 2
 ```{r}
 #make empty data frame
 supp2<-data.frame(matrix(ncol=5, nrow=0))
-columns<-c("Cancer_type", "GCD category", "OR", "lowCI", "UpperCI")
+columns<-c("Cancer type", "Reporting hospital distance category", "OR", "lowCI", "UpperCI")
 colnames(supp2)<-columns
 
-supp2[1,]<-c('NHL',  'Intermediate', format(ORmodel5b[2,1], digits=3), format(ORmodel5b[2,2], digits=2), format(ORmodel5b[2,3], digits=3))
-supp2[2,]<-c('NHL', 'Long', format(ORmodel5b[3,1], digits=3), format(ORmodel5b[3,2], digits=2), format(ORmodel5b[3,3], digits=3))
+supp2[1,]<-c('NHL',  'Intermediate', format(ORmodel5b[2,1], digits=3), format(ORmodel5b[2,2], digits=3), format(ORmodel5b[2,3], digits=3))
+supp2[2,]<-c('NHL', 'Long', format(ORmodel5b[3,1], digits=3), format(ORmodel5b[3,2], digits=3), format(ORmodel5b[3,3], digits=3))
 supp2[3,]<-c('HL',  'Intermediate', format(ORmodel5c[2,1],digits=3), format(ORmodel5c[2,2], digits=3), format(ORmodel5c[2,3], digits=3))
 supp2[4,]<-c('HL',  'Long', format(ORmodel5c[3,1],digits=3), format(ORmodel5c[3,2], digits=3), format(ORmodel5c[3,3], digits=3))
 supp2[5,]<-c('OS',  'Intermediate', format(ORmodel6a[2,1],digits=3), format(ORmodel6a[2,2],digits=3), format(ORmodel6a[2,3],digits=3))
@@ -675,14 +849,15 @@ supp2$lowCI<-as.numeric(supp2$lowCI)
 supp2$UpperCI<-as.numeric(supp2$UpperCI)
 
 ```
+
 #GCD figure
 ```{r}
 ggplot(supp2,aes(x = `GCD category`, y =`OR`, color=`GCD category`)) +
   geom_point(size = 1)+
   scale_color_manual(values=c("blue", "green"), name="", labels=c("Intermediate (>12.5 to <50 miles) vs. Short (<12.5 miles)","Long (>=50 miles) vs. Short (<12.5 miles)")) +
-  ylim(0,4.5) +
+  ylim(0,4) +
    coord_flip() +
-  geom_errorbar(aes(ymax = lowCI, ymin = UpperCI), width = 0.2)+
+  geom_errorbar(aes(ymax = lowCI, ymin = UpperCI), width = 0.1)+
   geom_hline(yintercept = 1, color="black", linetype = 1 ) +
 
 theme(axis.title.x = element_text(face="bold"),
@@ -690,7 +865,7 @@ theme(axis.title.x = element_text(face="bold"),
        axis.ticks.y=element_blank(),
        axis.text.y=element_blank(),
       axis.text.x=element_text(face="bold"),
-      axis.line.x=element_line(),
+      axis.line.x=element_line(size=0.5, colour="black", linetype=1),
       panel.background=element_blank(),
       strip.background=element_rect(), strip.text = element_text(size=8, face="bold", angle=90), legend.position = "bottom", legend.text=element_text(face="bold"))+
   
@@ -708,8 +883,9 @@ ggsave("Figure2.pdf")
 RUCA.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ RUCC, data=analytic_dt_lb)
 survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ RUCC, data=analytic_dt_lb)
 
-a<-ggsurvplot(RUCA.surv, ylim=c(0.6,1),  size=0.3, conf.int=FALSE, censor=TRUE, legend="bottom", legend.title="",legend.labs = c("RUCC 9-category 1 (most metro)", "RUCC 9-category 2", "RUCC 9-category 3", "RUCC 9-category 4", "RUCC 9-category 5", "RUCC 9-category 6", "RUCC 9-category 7", "RUCC 9-category 8", "RUCC 9-category (most rural)"), censor.size=0.7, xlab="Time (months)") + guides(colour = guide_legend(nrow = 3)) 
-a$plot<-a$plot +theme (legend.text = element_text(size = 8, color = "black", face = "bold"))
+
+
+a<-ggsurvplot(RUCA.surv, ylim=c(0.6,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="",legend.labs = c("RUCC 9-category 1 (most metro)", "RUCC 9-category 2", "RUCC 9-category 3", "RUCC 9-category 4", "RUCC 9-category 5", "RUCC 9-category 6", "RUCC 9-category 7", "RUCC 9-category 8", "RUCC 9-category (most rural)"), font.legend="bold", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)", tables.theme = clean_theme()) + guides(colour = guide_legend(nrow = 3)) 
 a
 ggsave("figure3a.pdf")
 
@@ -717,27 +893,156 @@ pairwise_survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ RUCC, data=analytic_d
 
 RUCA3.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead) ~ RUCC3, data=analytic_dt_lb)
 survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ RUCC3, data=analytic_dt_lb)
-b<-ggsurvplot(RUCA3.surv,  ylim=c(0,1),  size=0.3, conf.int=FALSE, censor=TRUE, legend="bottom", legend.title="",legend.labs = c("RUCC 3-category (Metro)", "RUCC 3-category (Non-metro Urban)", "RUCC 3-category (Rural)"), censor.size=0.7, xlab="Time (months)") + guides(colour = guide_legend(nrow = 1))
-b$plot<-b$plot +theme (legend.text = element_text(size = 8, color = "black", face = "bold")) 
-b
-ggsave("figure3b.pdf")
 
-b2<-pairwise_survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ RUCC3, data=analytic_dt_lb,  rho = 0)
-b2
+b<-ggsurvplot(RUCA3.surv, data=analytic_dt_lb,  ylim=c(0.6,1),  size=0.3, conf.int=TRUE, censor=TRUE, font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)", tables.theme = clean_theme(),legend.labs = c("RUCC 3-category (Metro)", "RUCC 3-category (Non-metro Urban)", "RUCC 3-category (Rural)"),
+, legend="bottom", legend.title="", font.legend="bold")+ guides(colour = guide_legend(nrow = 3))
+b
+
+ggsave("figure3b.pdf")
 
 
 GCD.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead) ~ GCD, data=analytic_dt_lb)
 survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ GCD, data=analytic_dt_lb)
-c<-ggsurvplot(GCD.surv,  ylim=c(0,1),  size=0.3, conf.int=FALSE, censor=TRUE, legend="bottom", legend.title="", legend.labs = c("Short (<=12.5 miles)", "Intermediate (>12.5 to <50 miles)", "Long (>=50 miles)"), censor.size=0.5, xlab="Time (months)") + guides(colour = guide_legend(nrow = 1)) 
-c$plot<-c$plot +theme (legend.text = element_text(size = 8, color = "black", face = "bold"))
+
+c<-ggsurvplot(GCD.surv,  ylim=c(0.6,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="", legend.labs = c("Short (<=12.5 miles)", "Intermediate (>12.5 to <50 miles)", "Long (>=50 miles)"), font.legend="bold", font.x="bold", font.y="bold",  censor.size=0.5, xlab="Time (months)",tables.theme = clean_theme()) + guides(colour = guide_legend(nrow = 3)) 
 c
 ggsave("figure3c.pdf")
+
 
 c2<-pairwise_survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ GCD, data=analytic_dt_lb, rho = 0)
 c2
 
+# RUCC3
+KM_CT <- function(inc_value, ab){
+RUCA3.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead) ~ RUCC3, 
+                      analytic_dt_lb[analytic_dt_lb[["cantype"]]==inc_value,])
+
+ab<-ggsurvplot(RUCA3.surv,  ylim=c(0,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="",legend.labs = c("RUCC 3-category (Metro)", "RUCC 3-category (Non-metro Urban)", "RUCC 3-category (Rural)"), font.legend="bold", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)",tables.theme = clean_theme(), title=inc_value)
+
+ab
+}
+
+inc_value="2.1 Non-Hodgkin lymphoma"
+KM_CT("2.1 Non-Hodgkin lymphoma", NHL)
+inc_value="2.2 Hodgkin lymphoma"
+KM_CT("2.2 Hodgkin lymphoma", HL)
+inc_value="4.0 Osseous and chondromatous neoplasms"
+KM_CT("4.0 Osseous and chondromatous neoplasms")
+inc_value="4.5.0 Soft Tissue Sarcomas"
+KM_CT("5.0 Soft Tissue Sarcomas")
+inc_value="6.1 Germ cell and trophoblastic neoplasms of gonads"
+KM_CT("6.1 Germ cell and trophoblastic neoplasms of gonads")
+inc_value="7.1 Melanoma"
+KM_CT("7.1 Melanoma")
+inc_value="8.1 Thyroid carcinoma"
+KM_CT("8.1 Thyroid carcinoma")
+inc_value="8.2 Carcinoma of head and neck"
+KM_CT("8.2 Carcinoma of head and neck")
+inc_value="8.3 Carcinoma of trachea, bronchus, and lung "
+KM_CT("8.3 Carcinoma of trachea, bronchus, and lung")
+inc_value="8.4 Carcinoma of breast"
+KM_CT("8.4 Carcinoma of breast")
+inc_value="8.5.1 Carcinoma of kidney"
+KM_CT("8.5.1 Carcinoma of kidney")
+inc_value="8.5.3 Carcinoma of gonads"
+KM_CT("8.5.3 Carcinoma of gonads")
+inc_value="8.5.4 Carcinoma of cervix"
+KM_CT("8.5.4 Carcinoma of cervix")
+inc_value="8.6.1 Carcinoma of colon and rectum"
+KM_CT("8.6.1 Carcinoma of colon and rectum")
+inc_value="8.6.2 Carcinoma of stomach"
+KM_CT("8.6.2 Carcinoma of stomach")
+inc_value="3.0 CNS and Other Intracranial and Intraspinal Neoplasms (all behaviors)"
+KM_CT("3.0 CNS and Other Intracranial and Intraspinal Neoplasms (all behaviors)")
+inc_value="1.0 Leukemias"
+KM_CT("1.0 Leukemias")
+
+# GCD
+KM_CTb <- function(inc_value, ab){
+GCD.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead) ~ GCD, 
+                      analytic_dt_lb[analytic_dt_lb[["cantype"]]==inc_value,])
+ab<-ggsurvplot(RUCA3.surv,  ylim=c(0,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="",legend.labs = c("Short (<12.5 miles)", "Intermediate (>12.5 to <50 miles)","Long (>=50 miles)"), font.legend="bold", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)",tables.theme = clean_theme(), title=inc_value) + guides(colour = guide_legend(nrow = 1)) 
+ab
+
+}
+inc_value="2.1 Non-Hodgkin lymphoma"
+KM_CTb("2.1 Non-Hodgkin lymphoma")
+inc_value="2.2 Hodgkin lymphoma"
+KM_CTb("2.2 Hodgkin lymphoma")
+inc_value="4.0 Osseous and chondromatous neoplasms"
+KM_CTb("4.0 Osseous and chondromatous neoplasms")
+inc_value="4.05.0 Soft Tissue Sarcomas"
+KM_CTb("5.0 Soft Tissue Sarcomas")
+inc_value="6.1 Germ cell and trophoblastic neoplasms of gonads"
+KM_CTb("6.1 Germ cell and trophoblastic neoplasms of gonads")
+inc_value="7.1 Melanoma"
+KM_CTb("7.1 Melanoma")
+inc_value="8.1 Thyroid carcinoma"
+KM_CTb("8.1 Thyroid carcinoma")
+inc_value="8.2 Carcinoma of head and neck"
+KM_CTb("8.2 Carcinoma of head and neck")
+inc_value="8.3 Carcinoma of trachea, bronchus, and lung "
+KM_CTb("8.3 Carcinoma of trachea, bronchus, and lung")
+inc_value="8.4 Carcinoma of breast"
+KM_CTb("8.4 Carcinoma of breast")
+inc_value="8.5.1 Carcinoma of kidney"
+KM_CTb("8.5.1 Carcinoma of kidney")
+inc_value="8.5.3 Carcinoma of gonads"
+KM_CTb("8.5.3 Carcinoma of gonads")
+inc_value="8.5.4 Carcinoma of cervix"
+KM_CTb("8.5.4 Carcinoma of cervix")
+inc_value="8.6.1 Carcinoma of colon and rectum"
+KM_CTb("8.6.1 Carcinoma of colon and rectum")
+inc_value="8.6.2 Carcinoma of stomach"
+KM_CTb("8.6.2 Carcinoma of stomach")
+inc_value="3.0 CNS and Other Intracranial and Intraspinal Neoplasms (all behaviors)"
+KM_CTb("3.0 CNS and Other Intracranial and Intraspinal Neoplasms (all behaviors)")
+inc_value="1.0 Leukemias"
+KM_CTb("1.0 Leukemias")
 ```
-#Table 3: Unadjusted Cox PH impact of Rural/Urban on vital status
+
+#Survival by stage for discussion
+```{r}
+stage.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, data=analytic_dt_lb)
+survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, analytic_dt_lb[which(analytic_dt_lb$cantype =="7.1 Melanoma"),])
+
+a<-ggsurvplot(stage.surv, ylim=c(0,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)", tables.theme = clean_theme(), title="7.1 Melanoma") + guides(colour = guide_legend(nrow = 3)) 
+a
+
+stage.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, data=analytic_dt_lb)
+survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, analytic_dt_lb[which(analytic_dt_lb$cantype =="8.6.1 Carcinoma of colon and rectum"),])
+
+b<-ggsurvplot(stage.surv, ylim=c(0,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)", tables.theme = clean_theme(), title="8.6.1 Carcinoma of colon and rectum") + guides(colour = guide_legend(nrow = 3)) 
+b
+
+stage.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, data=analytic_dt_lb)
+survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, analytic_dt_lb[which(analytic_dt_lb$cantype =="6.1 Germ cell and trophoblastic neoplasms of gonads"),])
+
+c<-ggsurvplot(stage.surv, ylim=c(0,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)", tables.theme = clean_theme(), title="6.1 Germ cell and trophoblastic neoplasms of gonads") + guides(colour = guide_legend(nrow = 3)) 
+c
+
+stage.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, data=analytic_dt_lb)
+survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, analytic_dt_lb[which(analytic_dt_lb$cantype =="2.1 Non-Hodgkin lymphoma"),])
+
+d<-ggsurvplot(stage.surv, ylim=c(0,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)", tables.theme = clean_theme(), title="2.1 Non-Hodgkin lymphoma") + guides(colour = guide_legend(nrow = 3)) 
+d
+
+stage.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, data=analytic_dt_lb)
+survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, analytic_dt_lb[which(analytic_dt_lb$cantype =="2.2 Hodgkin lymphoma"),])
+
+e<-ggsurvplot(stage.surv, ylim=c(0,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)", tables.theme = clean_theme(), title="2.2 Hodgkin lymphoma") + guides(colour = guide_legend(nrow = 3)) 
+e
+
+stage.surv <- survfit(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, data=analytic_dt_lb)
+survdiff(Surv(DX_LASTCONTACT_DEATH_MONTHS,dead) ~ stage, analytic_dt_lb[which(analytic_dt_lb$cantype =="8.1 Thyroid carcinoma"),])
+
+f<-ggsurvplot(stage.surv, ylim=c(0,1),  size=0.3, conf.int=TRUE, censor=TRUE, legend="bottom", legend.title="", font.x="bold", font.y="bold", censor.size=0.7, xlab="Time (months)", tables.theme = clean_theme(), title="8.1 Thyroid carcinoma") + guides(colour = guide_legend(nrow = 3)) 
+f
+
+```
+
+
+# Table 3: Unadjusted Cox PH impact of Rural/Urban on vital status
 ```{r}
 #RUCC
 unadja<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC, analytic_dt_lb) 
@@ -763,7 +1068,8 @@ table(analytic_dt_lb$dead, analytic_dt_lb$RUCC3)
 aggregate(analytic_dt_lb$DX_LASTCONTACT_DEATH_MONTHS,  by=list(category=analytic_dt_lb$GCD), FUN=sum)
 table(analytic_dt_lb$dead, analytic_dt_lb$GCD)
 ```
-#Proportional hazards assumption for unadjusted models
+
+# Proportional hazards assumption for unadjusted models
 ```{r}
 #RUCC
 test.pha<-cox.zph(unadja, terms=FALSE)
@@ -784,7 +1090,7 @@ test.phc
 ggcoxzph(test.phc)
 ```
 
-#Table 3: Adjusted Cox PH impact of Rural/Urban and GCD on vital status
+# Table 3: Adjusted Cox PH impact of Rural/Urban and GCD on vital status
 ```{r}
 #Adusted for age, sex, race, and education
 adja<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC + AGE + SEX + RACE + educ, analytic_dt_lb) 
@@ -795,6 +1101,20 @@ summary(adjb)
 
 adjc<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, analytic_dt_lb) 
 summary(adjc)
+
+adjd<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ + RUCC3, analytic_dt_lb) 
+summary(adjd)
+
+#adjust for stage as a mediator
+adje<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC + AGE + SEX + RACE + educ +stage, analytic_dt_lb) 
+summary(adje)
+
+adjf<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ +stage, analytic_dt_lb) 
+summary(adjf)
+
+adjg<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ +stage, analytic_dt_lb) 
+summary(adjg)
+
 ```
 #Proportional hazards assumption for adjusted models
 ```{r}
@@ -813,7 +1133,7 @@ ggcoxzph(test.phb)
 plot(test.phb, resid=FALSE)
 
 #GCD
-test.phc<-cox.zph(adjc)
+test.phc<-cox.zph(adjc, terms=TRUE)
 test.phc
 
 ggcoxzph(test.phc)
@@ -833,6 +1153,7 @@ analytic_dt_lb$status60<-ifelse(analytic_dt_lb$DX_LASTCONTACT_DEATH_MONTHS>60&an
 
 interval0to60<-coxph(Surv(survt60, status60)~GCD + AGE + strata(SEX) + strata(RACE) + strata(educ), analytic_dt_lb) 
 summary(interval0to60)
+
 HRmodel<-exp(cbind(HR = coef(interval0to60), confint(interval0to60))) #calculate HRs and 95% CIs
   HRmodel #print HRs and 95% CIs
 
@@ -842,7 +1163,7 @@ intervalgt60<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + strata(S
 summary(intervalgt60)
 
 #GCD
-test.ph60<-cox.zph(interval0to60)
+test.ph60<-cox.zph(interval0to60, terms=TRUE)
 test.ph60
 
 ggcoxzph(test.ph60)
@@ -855,147 +1176,183 @@ ggcoxzph(test.phgt60)
 plot(test.phgt60, resid=FALSE)
 
 supp3<-data.frame(matrix(ncol=4, nrow=0))
-columns<-c("Distance travelled", "HR", "lowCI", "UpperCI")
+columns<-c("Reporting hospital distance", "HR", "lowCI", "UpperCI")
 colnames(supp3)<-columns
-
 
 supp3[1,]<-c("short", "1.0 (reference)", "", "")
 supp3[2,]<-c("intermediate", format(HRmodel[1,1], digits=3), format(HRmodel[1,2], digits=3), format(HRmodel[1,3], digits=3))
 supp3[3,]<-c("long", format(HRmodel[2,1], digits=3), format(HRmodel[2,2], digits=3), format(HRmodel[2,3], digits=3))
 
 ```
-#Modification by cancer type
+#Modification by sex, race, and cancer type
 ```{r}
+# RUCC3
 
-#RUCC
+# SEX
+adjg<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ, analytic_dt_lb) 
+summary(adjg)
 
-adja<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC + AGE + SEX + RACE + educ  +  Cancer.Type.Justin.Recode, analytic_dt_lb) 
+adjh<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ +  RUCC3*SEX, analytic_dt_lb) 
+summary(adjh) # no interaction by sex
 
-adjb<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC + AGE + SEX + RACE + educ +  RUCC3*Cancer.Type.Justin.Recode, analytic_dt_lb) 
+lrtest(adjg, adjh)
 
-#RUCC3
-adjc<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ  +  Cancer.Type.Justin.Recode, analytic_dt_lb) 
+# RACE
+adji<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ, analytic_dt_lb) 
+summary(adji)
 
-adjd<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ +  RUCC3*Cancer.Type.Justin.Recode, analytic_dt_lb) 
+adjj<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ +  RUCC3*RACE, analytic_dt_lb) 
+summary(adjj) # no interaction by RACE
 
-#GCD
-adje<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ + Cancer.Type.Justin.Recode, analytic_dt_lb) 
+lrtest(adji, adjj)
 
-adjf<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ +  Cancer.Type.Justin.Recode + GCD*Cancer.Type.Justin.Recode, analytic_dt_lb) 
+# cancer type
+adjc<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ  +  cantype, analytic_dt_lb) 
+summary(adjc)
 
-#liklihood ratio test
-lrtest(adja, adjb)
-lrtest(adjc, adjd)
+adjd<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~RUCC3 + AGE + SEX + RACE + educ +  RUCC3*cantype, analytic_dt_lb) 
+summary(adjd)
+
+lrtest(adjc, adjd) # no interaction by cancer type
+
+
+# GCD
+# SEX
+adjk<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, analytic_dt_lb) 
+summary(adjk)
+
+adjl<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ +  GCD*SEX, analytic_dt_lb) 
+summary(adjl) 
+
+lrtest(adjk, adjl) # no interaction by sex
+
+
+# RACE
+adjm<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, analytic_dt_lb) 
+summary(adjm)
+
+adjn<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ +  GCD*RACE, analytic_dt_lb) 
+summary(adjn) 
+
+lrtest(adjm, adjn) # no interaction by RACE
+
+# cancer type
+adje<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ + cantype, analytic_dt_lb) 
+summary(adje)
+
+adjf<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ +  cantype + GCD*cantype, analytic_dt_lb) 
+summary(adjf)
+
 lrtest(adje, adjf)
+
 ```
+
 #Differences in survival by cancer type in association with GCD
 ```{r}
-
 # 2.1 Non-Hodgkin lymphoma
-modelNHL<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="2.1 Non-Hodgkin lymphoma", analytic_dt_lb) 
+modelNHL<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="2.1 Non-Hodgkin lymphoma", analytic_dt_lb) 
 summary(modelNHL)
 
  HRmodelNHL<-exp(cbind(HR = coef(modelNHL), confint(modelNHL))) #calculate HRs and 95% CIs
   HRmodelNHL #print HRs and 95% CIs
   
 #2.2 Hodgkin lymphoma
-modelHL<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="2.2 Hodgkin lymphoma", analytic_dt_lb) 
+modelHL<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="2.2 Hodgkin lymphoma", analytic_dt_lb) 
 summary(modelHL)
 
  HRmodelHL<-exp(cbind(HR = coef(modelHL), confint(modelHL))) #calculate HRs and 95% CIs
   HRmodelHL #print HRs and 95% CIs
   
 #4.0 Osseous and chondromatous neoplasms
-modelOSS<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="4.0 Osseous and chondromatous neoplasms", analytic_dt_lb) 
+modelOSS<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="4.0 Osseous and chondromatous neoplasms", analytic_dt_lb) 
 summary(modelOSS)
 
  HRmodelOSS<-exp(cbind(HR = coef(modelOSS), confint(modelOSS))) #calculate HRs and 95% CIs
   HRmodelOSS #print HRs and 95% CIs
   
-#5.0 Soft Tissue Sarcomas (excluding Kaposi sarcoma) 
-modelSTS<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="5.0 Soft Tissue Sarcomas (excluding Kaposi sarcoma)", analytic_dt_lb) 
+#5.0 Soft Tissue Sarcomas 
+modelSTS<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="5.0 Soft Tissue Sarcomas", analytic_dt_lb) 
 summary(modelSTS)
 
 HRmodelSTS<-exp(cbind(HR = coef(modelSTS), confint(modelSTS))) #calculate HRs and 95% CIs
   HRmodelSTS #print HRs and 95% CIs
 
 #6.1 Germ cell and trophoblastic neoplasms of gonads 
-modelGCT<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="6.1 Germ cell and trophoblastic neoplasms of gonads", analytic_dt_lb) 
+modelGCT<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="6.1 Germ cell and trophoblastic neoplasms of gonads", analytic_dt_lb) 
 summary(modelGCT)
 HRmodelGCT<-exp(cbind(HR = coef(modelGCT), confint(modelGCT))) #calculate HRs and 95% CIs
   HRmodelGCT #print HRs and 95% CIs
 
 #7.1 Melanoma 
-modelMEL<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="7.1 Melanoma", analytic_dt_lb) 
+modelMEL<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="7.1 Melanoma", analytic_dt_lb) 
 summary(modelMEL)
 HRmodelMEL<-exp(cbind(HR = coef(modelMEL), confint(modelMEL))) #calculate HRs and 95% CIs
   HRmodelMEL #print HRs and 95% CIs
   
-mode
 
-  #sex interaction model
-modelTHY<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ + SEX*GCD, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.1 Thyroid carcinoma", analytic_dt_lb) 
+#sex interaction model
+modelTHY<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ + SEX*GCD, subset=analytic_dt_lb$cantype=="8.1 Thyroid carcinoma", analytic_dt_lb) 
 summary(modelTHY)
 
 HRmodelTHY<-exp(cbind(HR = coef(modelTHY), confint(modelTHY))) #calculate HRs and 95% CIs
   HRmodelTHY #print HRs and 95% CIs
 
 #8.2 Carcinoma of head and neck 
-modelHEAD<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.2 Carcinoma of head and neck", analytic_dt_lb) 
+modelHEAD<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="8.2 Carcinoma of head and neck", analytic_dt_lb) 
 summary(modelHEAD)
 HRmodelHEAD<-exp(cbind(HR = coef(modelHEAD), confint(modelHEAD))) #calculate HRs and 95% CIs
   HRmodelHEAD #print HRs and 95% CIs
 
 #8.3 Carcinoma of trachea,bronchus, and lung 
-modelLUNG<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.3 Carcinoma of trachea,bronchus, and lung", analytic_dt_lb) 
+modelLUNG<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="8.3 Carcinoma of trachea, bronchus, and lung", analytic_dt_lb) 
 summary(modelLUNG)
 HRmodelLUNG<-exp(cbind(HR = coef(modelLUNG), confint(modelLUNG))) #calculate HRs and 95% CIs
   HRmodelLUNG #print HRs and 95% CIs
   
 #8.4 Carcinoma of breast
-modelBREAST<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.4 Carcinoma of breast", analytic_dt_lb) 
+modelBREAST<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="8.4 Carcinoma of breast", analytic_dt_lb) 
 summary(modelBREAST)
 HRmodelBREAST<-exp(cbind(HR = coef(modelBREAST), confint(modelBREAST))) #calculate HRs and 95% CIs
   HRmodelBREAST #print HRs and 95% CIs
   
 #8.5.1 Carcinoma of kidney 
-modelKID<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.5.1 Carcinoma of kidney", analytic_dt_lb) 
+modelKID<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="8.5.1 Carcinoma of kidney", analytic_dt_lb) 
 summary(modelKID)
 HRmodelKID<-exp(cbind(HR = coef(modelKID), confint(modelKID))) #calculate HRs and 95% CIs
   HRmodelKID #print HRs and 95% CIs
 
 #8.5.3 Carcinoma of gonads
-modelGON<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.5.3 Carcinoma of gonads", analytic_dt_lb) 
+modelGON<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="8.5.3 Carcinoma of gonads", analytic_dt_lb) 
 summary(modelGON)
 HRmodelGON<-exp(cbind(HR = coef(modelGON), confint(modelGON))) #calculate HRs and 95% CIs
   HRmodelGON #print HRs and 95% CIs
   
 #8.5.4 Carcinoma of cervix 
-modelCERV<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.5.4 Carcinoma of cervix", analytic_dt_lb) 
+modelCERV<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="8.5.4 Carcinoma of cervix", analytic_dt_lb) 
 summary(modelCERV)
 HRmodelCERV<-exp(cbind(HR = coef(modelCERV), confint(modelCERV))) #calculate HRs and 95% CIs
   HRmodelCERV #print HRs and 95% CIs
   
 #8.6.1 Carcinoma of colon and rectum
-modelCOL<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.6.1 Carcinoma of colon and rectum", analytic_dt_lb) 
+modelCOL<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="8.6.1 Carcinoma of colon and rectum", analytic_dt_lb) 
 summary(modelCOL)
  HRmodelCOL<-exp(cbind(HR = coef(modelCOL), confint(modelCOL))) #calculate HRs and 95% CIs
   HRmodelCOL #print HRs and 95% CIs
   
 #8.6.2 Carcinoma of stomach 
-modelSTOM<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="8.6.2 Carcinoma of stomach", analytic_dt_lb) 
+modelSTOM<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="8.6.2 Carcinoma of stomach", analytic_dt_lb) 
 summary(modelSTOM)
 HRmodelSTOM<-exp(cbind(HR = coef(modelSTOM), confint(modelSTOM))) #calculate HRs and 95% CIs
   HRmodelSTOM #print HRs and 95% CIs
   
 #Brain
-modelBrain<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="Brain", analytic_dt_lb) 
+modelBrain<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="3.0 CNS and Other Intracranial and Intraspinal Neoplasms (all behaviors)", analytic_dt_lb) 
 summary(modelBrain)
 HRmodelBrain<-exp(cbind(HR = coef(modelBrain), confint(modelBrain))) #calculate HRs and 95% CIs
   HRmodelBrain #print HRs and 95% CIs
   
 #Leukemia
-modelLeuk<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$Cancer.Type.Justin.Recode=="Leukemia", analytic_dt_lb) 
+modelLeuk<-coxph(Surv(DX_LASTCONTACT_DEATH_MONTHS, dead)~GCD + AGE + SEX + RACE + educ, subset=analytic_dt_lb$cantype=="1.0 Leukemias", analytic_dt_lb) 
 summary(modelLeuk)
 HRmodelLeuk<-exp(cbind(HR = coef(modelLeuk), confint(modelLeuk))) #calculate HRs and 95% CIs
   HRmodelLeuk #print HRs and 95% CIs
@@ -1005,7 +1362,7 @@ HRmodelLeuk<-exp(cbind(HR = coef(modelLeuk), confint(modelLeuk))) #calculate HRs
 ```{r}
 #make empty data frame
 supp4<-data.frame(matrix(ncol=5, nrow=0))
-columns<-c("Cancer_type", "GCD category","HR", "lowCI", "UpperCI")
+columns<-c("Cancer type", "Reporting hospital distance category","HR", "lowCI", "UpperCI")
 colnames(supp4)<-columns
 
 supp4[1,]<-c('NHL',  'Intermediate', format(HRmodelNHL[1,1], digits=3), format(HRmodelNHL[1,2], digits=3), format(HRmodelNHL[1,3], digits=3))
@@ -1101,9 +1458,13 @@ writeData(wb, sheet="Supplementary Table 3", x=supp3)
 addWorksheet(wb, sheetName="Supplementary Table 4")
 writeData(wb, sheet="Supplementary Table 4", x=supp4)
 saveWorkbook(wb, "Supplementary Tables.xlsx", overwrite=TRUE)
-
-table1(~Cancer.Type.Justin.Recode|GCD*as.factor(dead), analytic_dt_lb)
+```
+# Supplementary Table 5
+```{r}
+table1(~cantype|GCD*as.factor(dead), analytic_dt_lb)
 
 ```
+
+
 
 
