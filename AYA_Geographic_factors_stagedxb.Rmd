@@ -18,7 +18,6 @@ editor_options:
 #install.packages("frequency")
 #install.packages("expss") # for variable labelling
 #install.packages("mice") #Install mice package for imputed missing data
-#install.packages('VIM') #Install VIM package for plotting missing data patterns
 #install.packages("lattice")
 #install.packages("dichromat")
 #install.packages("odds.n.ends")
@@ -28,8 +27,6 @@ editor_options:
 library(openxlsx)
 library(lmtest)
 library(odds.n.ends)
-library(VIM) 
-library(mice) 
 library(lattice)
 library(survival)
 library(survminer) 
