@@ -1,0 +1,329 @@
+---
+title: "Untitled"
+author: "XW"
+date: "9/14/2020"
+output: html_document
+---
+
+# Mediation analysis for all cancers and by cancer types
+```{r}
+library(tidyverse)
+library(mma)
+library(RColorBrewer)
+library(patchwork)
+library(openxlsx)
+
+analytic_dt_v_m <- analytic_dt_v %>%
+  dplyr::select(stage_binary, RACE, AGE, SEX, educ, income, GCD, RUCC3,DX_LASTCONTACT_DEATH_MONTHS, dead, cantype) 
+
+save(analytic_dt_v_m, file="/Users/rosewang/Box/AYA Geographic factors stage/MediationAnalyses/med_data_inc.rda")
+
+load(file="med_data_inc.rda")
+
+###########Function estimating mediation effect of stage for GCD and RUCC3 exposure###################
+med<- function(analytic_dt_v_m) {
+  x=analytic_dt_v_m[,c(1:6)] #covariates and mediators:stage_binary, RACE, AGE, SEX, educ and income
+  pred1=analytic_dt_v_m[,7] #exposure GCD
+  pred2=analytic_dt_v_m[,8] #exposure RUCC3
+  y=Surv(analytic_dt_v_m$DX_LASTCONTACT_DEATH_MONTHS, analytic_dt_v_m$dead) #surival outcome
+  #alpha: the significance level at which to test if the potential mediators (identified by contmed, binmed, and catmed) can be used as a covariate or mediator in estimating y when all variables in x are included in the model. The default value is alpha=0.1
+  #alpha2:the significant level at which to test if a potential mediator is related with the predictor. The default value is alpha2=0.1.
+  #n account for the randomness brought in by the sampling process. 
+  #n2 indicates the number of bootstrap iterations. 
+  #GCD
+  set.seed(2020)
+  med1<-mma(x,y,pred=pred1, predref="Short", binmed=1, binref="Early", alpha=0.8, alpha2=0.8, n=30,n2=10,type="lp")
+  ie_1 <- summary(med1)$bin.result$results$indirect.effect$pred[c(2,4:5),2]
+  ie_2 <- summary(med1)$bin.result$results$indirect.effect$pred.temp1[c(2,4:5),2]
+  ie <- rbind(ie_1, ie_2)
+  row.names(ie) <- c("Intermediate", "Long")
+  te <- t(summary(med1)$bin.result$results$total.effect[c(2,4:5),])
+  row.names(te) <- c("Intermediate", "Long")
+  de <- t(summary(med1)$bin.result$results$direct.effect[c(2,4:5),])
+  row.names(de) <- c("Intermediate", "Long")
+  table1 <- cbind(te,de,ie)
+  #RUCC3
+  set.seed(2020)
+  med2<-mma(x,y,pred=pred2, predref="Metro", binmed=1, binref="Early", alpha=0.8, alpha2=0.8, n=30,n2=10,type="lp")
+  ie_1 <- summary(med2)$bin.result$results$indirect.effect$pred[c(2,4:5),2]
+  ie_2 <- summary(med2)$bin.result$results$indirect.effect$pred.temp1[c(2,4:5),2]
+  ie <- rbind(ie_1, ie_2)
+  row.names(ie) <- c("Non-metro Urban", "Rural")
+  te <- t(summary(med2)$bin.result$results$total.effect[c(2,4:5),])
+  row.names(te) <- c("Non-metro Urban", "Rural")
+  de <- t(summary(med2)$bin.result$results$direct.effect[c(2,4:5),])
+  row.names(de) <- c("Non-metro Urban", "Rural")
+  table2 <- cbind(te,de,ie)
+  table <- rbind(table1, table2)
+}
+
+########################Same function for cervix cancer only#########################
+med_female<- function(analytic_dt_v_m) {
+  x=analytic_dt_v_m[,c(1:3,5:6)] #covariates and mediators:stage_binary, RACE, AGE, educ and income
+  pred1=analytic_dt_v_m[,7] #exposure GCD
+  pred2=analytic_dt_v_m[,8] #exposure RUCC3
+  y=Surv(analytic_dt_v_m$DX_LASTCONTACT_DEATH_MONTHS, analytic_dt_v_m$dead) #surival outcome
+  #n account for the randomness brought in by the sampling process. 
+  #n2 indicates the number of bootstrap iterations. 
+  #GCD
+  set.seed(2020)
+  med1<-mma(x,y,pred=pred1, predref="Short", binmed=1, binref="Early", alpha=0.8, alpha2=0.8, n=30, n2=10,type="lp")
+  ie_1 <- summary(med1)$bin.result$results$indirect.effect$pred[c(2,4:5),2]
+  ie_2 <- summary(med1)$bin.result$results$indirect.effect$pred.temp1[c(2,4:5),2]
+  ie <- rbind(ie_1, ie_2)
+  row.names(ie) <- c("Intermediate", "Long")
+  te <- t(summary(med1)$bin.result$results$total.effect[c(2,4:5),])
+  row.names(te) <- c("Intermediate", "Long")
+  de <- t(summary(med1)$bin.result$results$direct.effect[c(2,4:5),])
+  row.names(de) <- c("Intermediate", "Long")
+  table1 <- cbind(te,de,ie)
+  #RUCC3
+  set.seed(2020)
+  med2<-mma(x,y,pred=pred2, predref="Metro", binmed=1, binref="Early", alpha=0.8, alpha2=0.8, n=30, n2=10,type="lp")
+  ie_1 <- summary(med2)$bin.result$results$indirect.effect$pred[c(2,4:5),2]
+  ie_2 <- summary(med2)$bin.result$results$indirect.effect$pred.temp1[c(2,4:5),2]
+  ie <- rbind(ie_1, ie_2)
+  row.names(ie) <- c("Non-metro Urban", "Rural")
+  te <- t(summary(med2)$bin.result$results$total.effect[c(2,4:5),])
+  row.names(te) <- c("Non-metro Urban", "Rural")
+  de <- t(summary(med2)$bin.result$results$direct.effect[c(2,4:5),])
+  row.names(de) <- c("Non-metro Urban", "Rural")
+  table2 <- cbind(te,de,ie)
+  table <- rbind(table1, table2)
+}
+```
+
+## Mediation models
+```{r}
+##################################One mediator###############################################
+#All cancers
+tt <- med(analytic_dt_v_m)
+
+#2.1 Non-Hodgkin lymphoma 
+t2.1 <- med(analytic_dt_v_m %>% filter(cantype=="2.1 Non-Hodgkin lymphoma"))
+
+#2.2 Hodgkin lymphoma
+t2.2 <- med(analytic_dt_v_m %>% filter(cantype=="2.2 Hodgkin lymphoma"))
+
+#4.0 Osseous and chondromatous neoplasms
+t4.0 <- med(analytic_dt_v_m %>% filter(cantype=="4.0 Osseous and chondromatous neoplasms"))
+
+#5.0 Soft Tissue Sarcomas (excluding Kaposi sarcoma)
+t5.0 <- med(analytic_dt_v_m %>% filter(cantype=="5.0 Soft Tissue Sarcomas"))
+
+#6.1 Germ cell and trophoblastic neoplasms of gonads
+t6.1 <- med(analytic_dt_v_m %>% filter(cantype=="6.1 Germ cell and trophoblastic neoplasms of gonads"))
+
+#7.1 Melanoma
+t7.1 <- med(analytic_dt_v_m %>% filter(cantype=="7.1 Melanoma"))
+
+#8.1 Thyroid carcinoma
+t8.1 <- med(analytic_dt_v_m %>% filter(cantype=="8.1 Thyroid carcinoma"))
+
+#8.2 Carcinoma of head and neck 
+t8.2 <- med(analytic_dt_v_m %>% filter(cantype=="8.2 Carcinoma of head and neck"))
+
+#8.3 Carcinoma of trachea,bronchus, and lung
+t8.3 <- med(analytic_dt_v_m %>% filter(cantype=="8.3 Carcinoma of trachea, bronchus, and lung"))
+
+#8.4 Carcinoma of breast
+t8.4 <- med(analytic_dt_v_m %>% filter(cantype=="8.4 Carcinoma of breast"))
+
+#8.5.1 Carcinoma of kidney
+t8.5.1 <- med(analytic_dt_v_m %>% filter(cantype=="8.5.1 Carcinoma of kidney"))
+
+#8.5.3 Carcinoma of gonads 
+t8.5.3 <- med(analytic_dt_v_m %>% filter(cantype=="8.5.3 Carcinoma of gonads"))
+
+#8.5.4 Carcinoma of cervix!!!!!
+t8.5.4 <- med_female(analytic_dt_v_m %>% filter(cantype=="8.5.4 Carcinoma of cervix"))
+
+#8.6.1 Carcinoma of colon and rectum
+t8.6.1 <- med(analytic_dt_v_m %>% filter(cantype=="8.6.1 Carcinoma of colon and rectum"))
+
+#8.6.2 Carcinoma of stomach
+t8.6.2 <- med(analytic_dt_v_m %>% filter(cantype=="8.6.2 Carcinoma of stomach"))
+
+#Combine all tables
+t <- rbind(tt,t2.1,t2.2,t4.0,t5.0,t6.1,t7.1,t8.1,t8.2,t8.3,t8.4, t8.5.1,t8.5.3,t8.5.4,t8.6.1,t8.6.2)
+colnames(t) <- c("te","te_ub","te_lb","de","de_ub","de_lb","ie","ie_ub","ie_lb")
+
+#Manage data for plotting
+t <- t %>%
+  as.tibble() %>%
+  mutate_if(is.character,as.numeric) %>%
+  cbind(cantype=rep(c("All cancers",sort(unique(analytic_dt_v_m$cantype))),each=4), exposure=rep(c("Intermediate vs. Short","Long vs. Short","Non-metro Urban vs. Metro","Rural vs. Metro"))) %>%
+  mutate(MediationProportion=ie/te,
+         te=exp(te),
+         te_ub=exp(te_ub),
+         te_lb=exp(te_lb),
+         de=exp(de),
+         de_ub=exp(de_ub),
+         de_lb=exp(de_lb),
+         ie=exp(ie),
+         ie_ub=exp(ie_ub),
+         ie_lb=exp(ie_lb)) %>%
+  select(cantype,exposure,everything()) %>%
+  mutate(cantype=factor(cantype, levels=c("All cancers","2.1 Non-Hodgkin lymphoma", "2.2 Hodgkin lymphoma", "4.0 Osseous and chondromatous neoplasms", "5.0 Soft Tissue Sarcomas", "6.1 Germ cell and trophoblastic neoplasms of gonads", "7.1 Melanoma", "8.1 Thyroid carcinoma", "8.2 Carcinoma of head and neck", "8.3 Carcinoma of trachea, bronchus, and lung", "8.4 Carcinoma of breast", "8.5.1 Carcinoma of kidney", "8.5.3 Carcinoma of gonads", "8.5.4 Carcinoma of cervix", "8.6.1 Carcinoma of colon and rectum", "8.6.2 Carcinoma of stomach")))
+
+list <- list("Single mediator"=t)
+write.xlsx(list, "MediationResults.xlsx", colNames=T, borders="rows")
+```
+
+##Mediation Graph: GCD
+```{r}
+library(readxl)
+t <- read_excel("MediationResults.xlsx") %>%
+  mutate(cantype=factor(cantype, levels=c("All cancers","2.1 Non-Hodgkin lymphoma", "2.2 Hodgkin lymphoma", "4.0 Osseous and chondromatous neoplasms", "5.0 Soft Tissue Sarcomas", "6.1 Germ cell and trophoblastic neoplasms of gonads", "7.1 Melanoma", "8.1 Thyroid carcinoma", "8.2 Carcinoma of head and neck", "8.3 Carcinoma of trachea, bronchus, and lung", "8.4 Carcinoma of breast", "8.5.1 Carcinoma of kidney", "8.5.3 Carcinoma of gonads", "8.5.4 Carcinoma of cervix", "8.6.1 Carcinoma of colon and rectum", "8.6.2 Carcinoma of stomach")))
+
+colourCount <- 16
+te <- t %>%
+  filter(exposure %in% c("Intermediate vs. Short", "Long vs. Short")) %>%
+  ggplot(aes(x =exposure, y =te, color=cantype)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymax = te_ub, ymin = te_lb), width = 0.2)+
+  scale_x_discrete(limits=c("Intermediate vs. Short", "Long vs. Short"))+
+  scale_y_continuous(breaks = c(0,1,2,3), limits=c(0,3))+
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Accent")) (colourCount))+
+  coord_flip()+
+  facet_wrap(~cantype, ncol=1, strip.position = "top",labeller = labeller(cantype= label_wrap_gen(30)))+
+  theme(strip.background = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y=element_blank(),
+                strip.text = element_text(size=6), 
+        panel.background = element_blank(),
+        axis.line.x = element_line(color="black", size = 0.3),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6),
+        axis.title.x = element_text(size=6))+
+  geom_hline(yintercept = 1, color="grey", linetype = 2 )+
+  theme(legend.position="none")+
+  ylab("HR and 95%CI (Total effect)") 
+
+de <- t %>%
+  filter(exposure %in% c("Intermediate vs. Short", "Long vs. Short")) %>%
+  ggplot(aes(x =exposure, y =de, color=cantype)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymax = de_ub, ymin = de_lb), width = 0.2)+
+  scale_x_discrete(limits=c("Intermediate vs. Short", "Long vs. Short"))+
+  scale_y_continuous(breaks=c(0,1,2,3), limits=c(0,3))+
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Accent")) (colourCount))+
+  coord_flip()+
+  facet_wrap(~cantype, ncol=1, strip.position = "top",labeller = labeller(cantype= label_wrap_gen(30)))+
+  theme(strip.background = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y=element_blank(),
+                strip.text = element_text(size=6), 
+        panel.background = element_blank(),
+        axis.line.x = element_line(color="black", size = 0.3),
+        axis.text.x = element_text(size=6), 
+        axis.text.y = element_blank(),
+        axis.title.x = element_text(size=6))+
+  geom_hline(yintercept = 1, color="grey", linetype = 2 )+
+  theme(legend.position="none")+
+  ylab("HR and 95%CI (Direct effect)") 
+
+ie <- t %>%
+  filter(exposure %in% c("Intermediate vs. Short", "Long vs. Short")) %>%
+  ggplot(aes(x =exposure, y =ie, color=cantype)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymax = ie_ub, ymin = ie_lb), width = 0.2)+
+  scale_x_discrete(limits=c("Intermediate vs. Short", "Long vs. Short"))+
+  scale_y_continuous(breaks=c(0,1,2,3), limits=c(0,3))+
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Accent")) (colourCount))+
+  coord_flip()+
+  facet_wrap(~cantype, ncol=1, strip.position = "top",labeller = labeller(cantype= label_wrap_gen(30)))+
+  theme(strip.background = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y=element_blank(),
+                strip.text = element_text(size=6), 
+        panel.background = element_blank(),
+        axis.line.x = element_line(color="black", size = 0.3),
+        axis.text.x = element_text(size=6), 
+        axis.text.y = element_blank(),
+        axis.title.x = element_text(size=6))+
+  geom_hline(yintercept = 1, color="grey", linetype = 2 )+
+  theme(legend.position="none")+
+  ylab("HR and 95%CI (Indirect effect)") 
+
+(te|de|ie|guide_area())/guide_area() +plot_layout(nrow=2, heights = c(9,0.5))
+
+ggsave("SupplementaryFigure1.pdf", width = 6.75, height = 12, units ="in", dpi = 600)
+```
+
+##Mediaiton Graph: RUCC3
+```{r}
+colourCount <- 16
+te <- t %>%
+  filter(exposure %in% c("Non-metro Urban vs. Metro","Rural vs. Metro")) %>%
+  ggplot(aes(x =exposure, y =te, color=cantype)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymax = te_ub, ymin = te_lb), width = 0.2)+
+  scale_x_discrete(limits=c("Non-metro Urban vs. Metro","Rural vs. Metro"))+
+  scale_y_continuous(breaks = c(0,1,2,3), limits=c(0,3))+
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Accent")) (colourCount))+
+  coord_flip()+
+  facet_wrap(~cantype, ncol=1, strip.position = "top",labeller = labeller(cantype= label_wrap_gen(30)))+
+  theme(strip.background = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y=element_blank(),
+                strip.text = element_text(size=6), 
+        panel.background = element_blank(),
+        axis.line.x = element_line(color="black", size = 0.3),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6),
+        axis.title.x = element_text(size=6))+
+  geom_hline(yintercept = 1, color="grey", linetype = 2 )+
+  theme(legend.position="none")+
+  ylab("HR and 95%CI (Total effect)") 
+
+de <- t %>%
+  filter(exposure %in% c("Non-metro Urban vs. Metro","Rural vs. Metro")) %>%
+  ggplot(aes(x =exposure, y =de, color=cantype)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymax = de_ub, ymin = de_lb), width = 0.2)+
+  scale_x_discrete(limits=c("Non-metro Urban vs. Metro","Rural vs. Metro"))+
+  scale_y_continuous(breaks=c(0,1,2,3), limits=c(0,3))+
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Accent")) (colourCount))+
+  coord_flip()+
+  facet_wrap(~cantype, ncol=1, strip.position = "top",labeller = labeller(cantype= label_wrap_gen(30)))+
+  theme(strip.background = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y=element_blank(),
+                strip.text = element_text(size=6), 
+        panel.background = element_blank(),
+        axis.line.x = element_line(color="black", size = 0.3),
+        axis.text.x = element_text(size=6), 
+        axis.text.y = element_blank(),
+        axis.title.x = element_text(size=6))+
+  geom_hline(yintercept = 1, color="grey", linetype = 2 )+
+  theme(legend.position="none")+
+  ylab("HR and 95%CI (Direct effect)") 
+
+ie <- t %>%
+  filter(exposure %in% c("Non-metro Urban vs. Metro","Rural vs. Metro")) %>%
+  ggplot(aes(x =exposure, y =ie, color=cantype)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymax = ie_ub, ymin = ie_lb), width = 0.2)+
+  scale_x_discrete(limits=c("Non-metro Urban vs. Metro","Rural vs. Metro"))+
+  scale_y_continuous(breaks=c(0,1,2,3), limits=c(0,3))+
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Accent")) (colourCount))+
+  coord_flip()+
+  facet_wrap(~cantype, ncol=1, strip.position = "top",labeller = labeller(cantype= label_wrap_gen(30)))+
+  theme(strip.background = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y=element_blank(),
+                strip.text = element_text(size=6), 
+        panel.background = element_blank(),
+        axis.line.x = element_line(color="black", size = 0.3),
+        axis.text.x = element_text(size=6), 
+        axis.text.y = element_blank(),
+        axis.title.x = element_text(size=6))+
+  geom_hline(yintercept = 1, color="grey", linetype = 2 )+
+  theme(legend.position="none")+
+  ylab("HR and 95%CI (Indirect effect)") 
+
+te+de+ie+guide_area()+plot_layout(nrow=1)
+ggsave("Figure5.pdf", width = 6.75, height = 11, units ="in", dpi = 600)
+```
+
